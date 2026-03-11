@@ -1,0 +1,228 @@
+schema: spec-driven
+version: "1.0"
+generated_at: "2026-03-11T17:30:00Z"
+
+project:
+  name: carrier-gateway
+  path: "C:/Users/Reche/Desktop/gopro"
+  type: single-package
+  description: "Multi-Carrier Quote Aggregation Engine — fan-out/fan-in, circuit breakers, adaptive hedging, generic adapters, rate limiting, structured metrics, hexagonal architecture"
+
+stack:
+  runtime: go
+  language: go
+  language_version: "1.22"
+  frameworks:
+    frontend: none
+    backend: none
+    testing: go-test
+  database: none
+  orm: none
+
+architecture:
+  pattern: single-package
+  workspaces: []
+  entry_points:
+    backend: "cmd/carrier-gateway/main.go"
+
+capabilities:
+  memory_enabled: true
+
+commands:
+  package_manager: go
+  typecheck: "go vet ./..."
+  lint: "golangci-lint run ./..."
+  lint_fix: "golangci-lint run --fix ./..."
+  test: "go test ./..."
+  format_check: "gofmt -l ."
+  format_fix: "gofmt -w ."
+  build: "go build ./..."
+
+conventions:
+  type_strictness:
+    banned:
+      - "interface{} (use any or typed interfaces)"
+      - "unsafe package usage without justification"
+      - "untyped constants in public API"
+    allowed:
+      - "any (Go 1.18+ alias for interface{})"
+      - "generics with type constraints"
+    test_only:
+      - "reflect package for test helpers"
+  error_handling:
+    pattern: error-return
+    result_type_path: null
+    rules:
+      - "Always check returned errors — no unhandled error returns"
+      - "Wrap errors with context using fmt.Errorf with %w verb"
+      - "Define sentinel errors for domain-specific failure modes"
+      - "No empty catch blocks (no blank error checks)"
+      - "Throw only at system boundaries; prefer error return types internally"
+  testing:
+    runner: go-test
+    pattern: table-driven
+    file_suffix: _test.go
+    location: colocated
+  file_organization:
+    max_lines_warning: 600
+    max_lines_error: 800
+    max_nesting_depth: 3
+  code_style:
+    async_preference: goroutines-channels
+    immutability: prefer-immutable
+    no_unstructured_logging: true
+    magic_numbers: false
+  security:
+    - "Never commit secrets, tokens, or credentials"
+    - "Validate all user input at API boundaries"
+    - "No dynamic code execution with untrusted input"
+    - "Sanitize data before rendering or database insertion"
+    - "Check dependencies for known vulnerabilities before release"
+
+phases:
+  proposal:
+    required_sections:
+      - intent
+      - scope
+      - approach
+      - affected_areas
+      - risks
+      - rollback_plan
+      - dependencies
+      - success_criteria
+  specs:
+    keywords: RFC2119
+    scenario_format: given-when-then
+    min_scenarios_per_requirement: 1
+  design:
+    required_sections:
+      - technical_approach
+      - architecture_decisions
+      - data_flow
+      - file_changes
+      - interfaces
+      - testing_strategy
+  tasks:
+    phase_order:
+      - foundation
+      - core
+      - integration
+      - testing
+      - cleanup
+    task_format: "N.M Action - file, change"
+  apply:
+    batch_size: 1
+    verify_after_each: true
+  review:
+    checklist:
+      - type_safety
+      - error_handling
+      - test_coverage
+      - naming_conventions
+  verify: {}
+  clean:
+    merge_specs: true
+    archive_changes: true
+
+code_review:
+  agents_md: AGENTS.md
+
+contracts:
+  explore:
+    preconditions:
+      - config.yaml exists at openspec/config.yaml
+      - topic parameter is non-empty string
+    postconditions:
+      - exploration.md written to openspec/changes/{changeName}/ (if changeName provided)
+      - envelope.phaseSpecificData.relevant_files array has >=1 entry (or blocking_questions explaining absence)
+      - envelope.status is SUCCESS or ERROR
+  propose:
+    preconditions:
+      - exploration.md exists at openspec/changes/{changeName}/
+    postconditions:
+      - proposal.md written with all required_sections from config.yaml phases.proposal
+      - envelope.phaseSpecificData contains change_size and risk_level
+      - envelope.status is SUCCESS, PARTIAL, or ERROR
+  spec:
+    preconditions:
+      - proposal.md exists and was approved
+    postconditions:
+      - ">=1 spec file in openspec/changes/{changeName}/specs/"
+      - each spec contains >=1 GIVEN/WHEN/THEN scenario
+      - envelope.metrics.specs.covered >=1
+  design:
+    preconditions:
+      - proposal.md exists and was approved
+    postconditions:
+      - design.md written with all required_sections from config.yaml phases.design
+      - ">=1 interface definition with typed fields"
+      - envelope.artifacts contains design.md path
+  tasks:
+    preconditions:
+      - spec files exist in openspec/changes/{changeName}/specs/
+      - design.md exists at openspec/changes/{changeName}/
+    postconditions:
+      - "tasks.md written with >=1 phase containing >=1 task"
+      - each task references a spec scenario or design component
+      - envelope.metrics.tasks.total >=1
+  apply:
+    preconditions:
+      standard_mode:
+        - "tasks.md exists with >=1 uncompleted task"
+        - design.md exists at openspec/changes/{changeName}/
+        - spec files exist in openspec/changes/{changeName}/specs/
+      fix_mode:
+        - review-report.md OR verify-report.md exists at openspec/changes/{changeName}/
+        - fixList is non-empty in the dispatch payload
+    postconditions:
+      standard_mode:
+        - ">=1 task marked [x] in tasks.md"
+        - apply-report.md written to openspec/changes/{changeName}/
+        - envelope.buildHealth contains typecheck, lint, tests, format
+        - envelope.metrics.filesCreated and filesModified are populated
+        - envelope.artifacts contains apply-report.md path
+        - envelope.status is SUCCESS, PARTIAL, or ERROR
+      fix_mode:
+        - fix-report-{iteration}.md written to openspec/changes/{changeName}/
+        - envelope.phaseSpecificData.mode is "fix"
+        - envelope.phaseSpecificData.fixesApplied is populated
+        - envelope.buildHealth contains typecheck, lint, tests, format
+        - envelope.status is SUCCESS, PARTIAL, or ERROR
+  review:
+    preconditions:
+      - apply-report.md exists at openspec/changes/{changeName}/
+      - ">=1 task marked [x] in tasks.md"
+      - files listed in apply-report.md exist on disk
+    postconditions:
+      - review-report.md written to openspec/changes/{changeName}/
+      - envelope.phaseSpecificData.verdict is PASSED or FAILED
+      - all spec scenarios accounted for in spec coverage matrix
+  verify:
+    preconditions:
+      - review-report.md exists at openspec/changes/{changeName}/ (or review explicitly skipped)
+      - implementation files exist on disk
+    postconditions:
+      - verify-report.md written to openspec/changes/{changeName}/
+      - envelope.buildHealth contains all 4 checks (typecheck, lint, tests, format)
+      - envelope.phaseSpecificData.verdict is PASS, PASS_WITH_WARNINGS, or FAIL
+  clean:
+    preconditions:
+      - verify verdict is PASS or PASS_WITH_WARNINGS
+    postconditions:
+      - no orphaned imports or dead code in changed files
+      - envelope.buildHealth.typecheck is PASS
+      - envelope.buildHealth.tests is PASS
+  archive:
+    preconditions:
+      - clean phase completed successfully
+      - verify verdict is PASS or PASS_WITH_WARNINGS (no CRITICAL issues)
+    postconditions:
+      - change directory moved to openspec/changes/archive/{date}-{changeName}/
+      - archive-manifest.md written
+      - delta specs merged into openspec/specs/
+  analytics:
+    preconditions: []
+    postconditions:
+      - report written to openspec/analytics/
+      - envelope.artifacts contains report path
+      - envelope.status is SUCCESS
