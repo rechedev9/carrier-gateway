@@ -39,7 +39,7 @@ spec:
             - configMapRef:
                 name: carrier-gateway-config
             - secretRef:
-                name: carrier-gateway-secrets
+                name: carrier-gateway-secrets  # created externally, see config.yaml
           livenessProbe:
             httpGet:
               path: /healthz

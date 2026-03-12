@@ -8,19 +8,7 @@ metadata:
 data:
   ADDR: ":8080"
   CLEANUP_INTERVAL: "5m"
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: carrier-gateway-secrets
-  namespace: carrier-gateway
-  labels:
-    app.kubernetes.io/name: carrier-gateway
-type: Opaque
-data:
-  # Placeholder values — inject real secrets via SealedSecrets, ExternalSecrets, or CI.
-  # echo -n "<value>" | base64
-  API_KEYS: ""
-  DATABASE_URL: ""
-  DELTA_BASE_URL: ""
-  DELTA_API_KEY: ""
+# Secret "carrier-gateway-secrets" is NOT defined here — create it externally
+# via SealedSecrets, ExternalSecrets, or your CI pipeline.
+# Required keys: API_KEYS, DATABASE_URL
+# Optional keys: DELTA_BASE_URL, DELTA_API_KEY
