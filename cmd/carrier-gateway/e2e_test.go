@@ -254,7 +254,7 @@ func TestE2E_Metrics(t *testing.T) {
 	}
 
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "carrier_gateway_") {
-		t.Fatal("expected metrics body to contain carrier_gateway_ prefix")
+	if !strings.Contains(string(body), "orchestrator_fan_out_duration_seconds") {
+		t.Fatal("expected metrics body to contain orchestrator_fan_out_duration_seconds")
 	}
 }

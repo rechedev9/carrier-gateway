@@ -192,10 +192,15 @@ func (o *Orchestrator) fanOut(ctx context.Context, req domain.QuoteRequest) ([]d
 
 	g, gCtx := errgroup.WithContext(reqCtx)
 
-	g.Go(func() error {
-		hedgeMonitor(gCtx, pending, results, hedgeable, req, o.metrics, o.log, o.cfg.HedgePollInterval)
-		return nil
-	})
+	// hedgeMonitor runs outside the errgroup so it exits as soon as the primary
+	// carriers finish — not when reqCtx times out. hedgeCtx is cancelled by the
+	// collector goroutine once g.Wait() returns.
+	hedgeCtx, hedgeCancel := context.WithCancel(gCtx)
+	hedgeDone := make(chan struct{})
+	go func() {
+		hedgeMonitor(hedgeCtx, pending, results, hedgeable, req, o.metrics, o.log, o.cfg.HedgePollInterval)
+		close(hedgeDone)
+	}()
 
 	for _, c := range eligible {
 		carrier := c
@@ -207,11 +212,11 @@ func (o *Orchestrator) fanOut(ctx context.Context, req domain.QuoteRequest) ([]d
 	collected := make([]domain.QuoteResult, 0, len(eligible))
 	seen := make(map[string]bool, len(eligible))
 
-	doneCh := make(chan struct{})
 	go func() {
-		_ = g.Wait()
+		_ = g.Wait()  // wait for primary carriers only
+		hedgeCancel() // signal hedgeMonitor to stop
+		<-hedgeDone   // wait for hedgeMonitor + its hedge goroutines
 		close(results)
-		close(doneCh)
 	}()
 
 	for result := range results {
@@ -225,7 +230,6 @@ func (o *Orchestrator) fanOut(ctx context.Context, req domain.QuoteRequest) ([]d
 		seen[result.CarrierID] = true
 		collected = append(collected, result)
 	}
-	<-doneCh
 
 	slices.SortFunc(collected, func(a, b domain.QuoteResult) int {
 		if n := cmp.Compare(a.Premium.Amount, b.Premium.Amount); n != 0 {

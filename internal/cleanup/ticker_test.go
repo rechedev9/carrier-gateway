@@ -2,6 +2,7 @@ package cleanup_test
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"sync/atomic"
 	"testing"
@@ -10,6 +11,8 @@ import (
 	"github.com/rechedev9/carrier-gateway/internal/cleanup"
 	"github.com/rechedev9/carrier-gateway/internal/domain"
 )
+
+var discardLog = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 // stubRepo counts DeleteExpired calls for test assertions.
 type stubRepo struct {
@@ -31,9 +34,7 @@ func (s *stubRepo) DeleteExpired(_ context.Context) (int64, error) {
 
 func TestTicker_CallsDeleteExpired(t *testing.T) {
 	repo := &stubRepo{}
-	log := slog.New(slog.NewTextHandler(nil, nil))
-
-	ticker := cleanup.New(repo, 50*time.Millisecond, log)
+	ticker := cleanup.New(repo, 50*time.Millisecond, discardLog)
 	go ticker.Start(t.Context())
 
 	// Wait enough for at least 2 ticks.
@@ -49,9 +50,7 @@ func TestTicker_CallsDeleteExpired(t *testing.T) {
 
 func TestTicker_StopIsClean(t *testing.T) {
 	repo := &stubRepo{}
-	log := slog.New(slog.NewTextHandler(nil, nil))
-
-	ticker := cleanup.New(repo, 1*time.Hour, log)
+	ticker := cleanup.New(repo, 1*time.Hour, discardLog)
 	go ticker.Start(t.Context())
 
 	// Stop immediately — no ticks should have fired.
@@ -69,10 +68,9 @@ func TestTicker_StopIsClean(t *testing.T) {
 
 func TestTicker_ContextCancellation(t *testing.T) {
 	repo := &stubRepo{}
-	log := slog.New(slog.NewTextHandler(nil, nil))
 
 	ctx, cancel := context.WithCancel(t.Context())
-	ticker := cleanup.New(repo, 1*time.Hour, log)
+	ticker := cleanup.New(repo, 1*time.Hour, discardLog)
 
 	done := make(chan struct{})
 	go func() {
