@@ -1,0 +1,29 @@
+# Dependencies (downloaded by go mod download in the builder stage)
+vendor/
+
+# Version control
+.git/
+.gitignore
+
+# Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test artifacts
+*.test
+*.out
+coverage.html
+
+# CI/CD
+.github/
+
+# Local environment — never bake secrets into the image
+.env
+.env.*
+!.env.example
+
+# Documentation
+*.md
+docs/

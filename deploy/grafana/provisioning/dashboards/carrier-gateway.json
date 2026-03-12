@@ -1,0 +1,100 @@
+{
+  "title": "Carrier Gateway",
+  "uid": "carrier-gateway",
+  "version": 1,
+  "schemaVersion": 38,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Circuit Breaker State by Carrier",
+      "description": "0 = Closed (green), 1 = Open (red), 2 = HalfOpen (yellow)",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 },
+              { "color": "yellow", "value": 2 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "carrier_circuit_breaker_state",
+          "legendFormat": "{{carrier_id}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Quote Latency p50 / p95 / p99",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(carrier_quote_latency_seconds_bucket[1m])) by (le, carrier_id)) * 1000",
+          "legendFormat": "p50 {{carrier_id}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(carrier_quote_latency_seconds_bucket[1m])) by (le, carrier_id)) * 1000",
+          "legendFormat": "p95 {{carrier_id}}"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(carrier_quote_latency_seconds_bucket[1m])) by (le, carrier_id)) * 1000",
+          "legendFormat": "p99 {{carrier_id}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Hedges per Minute",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(hedge_requests_total[1m])) by (carrier_id) * 60",
+          "legendFormat": "hedge → {{carrier_id}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Fan-out Duration p50 / p95",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(orchestrator_fan_out_duration_seconds_bucket[1m])) by (le)) * 1000",
+          "legendFormat": "fan-out p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(orchestrator_fan_out_duration_seconds_bucket[1m])) by (le)) * 1000",
+          "legendFormat": "fan-out p95"
+        }
+      ]
+    }
+  ]
+}
