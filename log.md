@@ -287,3 +287,24 @@ All metric names verified against `internal/metrics/prometheus.go`. All service 
 **What:** Added API key authentication, security headers, and audit logging middleware. `/quotes` requires `Authorization: Bearer <key>`, while `/healthz` and `/metrics` bypass auth. Keys compared with `crypto/subtle.ConstantTimeCompare`. Client identity (truncated key) stored in request context for audit logging. Gateway refuses to start without API_KEYS configured (fail-closed).
 **Why:** Improvement #2 from improvements.md — all endpoints were open with zero authentication.
 **Next:** —
+
+---
+
+### 2026-03-12 — Kubernetes manifests (Improvement #4 — Phase 2b)
+**Status:** done
+**Files touched:**
+- `deploy/k8s/namespace.yaml` (new)
+- `deploy/k8s/config.yaml` (new)
+- `deploy/k8s/gateway.yaml` (new)
+- `deploy/k8s/scaling-and-policy.yaml` (new)
+**What:** Added plain K8s manifests covering:
+1. **Namespace** — `carrier-gateway` with standard labels
+2. **ConfigMap** — non-secret env vars (`ADDR`, `CLEANUP_INTERVAL`)
+3. **Secret** — sensitive env vars (`API_KEYS`, `DATABASE_URL`, `DELTA_BASE_URL`, `DELTA_API_KEY`) with base64 placeholders
+4. **Deployment** — 2 replicas, rolling update (maxSurge 1, maxUnavailable 0), liveness+readiness on `/healthz`, nonroot/read-only/drop-all security context, `topologySpreadConstraints` for zone spread, `terminationGracePeriodSeconds: 35`
+5. **Service** — ClusterIP port 80→8080 with Prometheus scrape annotations
+6. **PDB** — `minAvailable: 1`
+7. **HPA** — autoscaling/v2, 2→10 replicas, CPU 70%, scaleDown stabilization 300s
+8. **NetworkPolicy** — ingress from ingress-nginx + monitoring namespaces on 8080; egress to postgres (5432), HTTPS (443), DNS (53)
+**Why:** Improvement #4 — production deployment needs K8s manifests.
+**Next:** —

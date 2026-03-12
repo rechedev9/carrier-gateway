@@ -1,0 +1,91 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: carrier-gateway
+  namespace: carrier-gateway
+  labels:
+    app.kubernetes.io/name: carrier-gateway
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: carrier-gateway
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: carrier-gateway
+  namespace: carrier-gateway
+  labels:
+    app.kubernetes.io/name: carrier-gateway
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: carrier-gateway
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: carrier-gateway
+  namespace: carrier-gateway
+  labels:
+    app.kubernetes.io/name: carrier-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: carrier-gateway
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 8080
+          protocol: TCP
+    # Allow traffic from Prometheus
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 8080
+          protocol: TCP
+  egress:
+    # PostgreSQL
+    - to:
+        - podSelector: {}
+      ports:
+        - port: 5432
+          protocol: TCP
+    # HTTPS (external carrier APIs)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 443
+          protocol: TCP
+    # DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - port: 53
+          protocol: TCP
+        - port: 53
+          protocol: UDP
