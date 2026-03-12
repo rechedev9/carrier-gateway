@@ -140,4 +140,27 @@ Documented each with exact fix in `fixes.md`. Key findings:
 7. **FIX-L3** — CLAUDE.md hedgeMonitor comment updated
 8. **FIX-L4** — Explicit `HedgePollInterval: 5ms` in main.go
 **Why:** Full audit pass. These were all remaining open items from fixes.md.
-**Next:** Remaining new audit findings (AUD-H3 through AUD-M8) — HTTP client transport limits, timer leak in retry, DB pool tuning, health endpoint, TLS certs in Docker image.
+**Next:** Remaining new audit findings (AUD-H3 through AUD-M8).
+
+---
+
+### 2026-03-12 — Audit fixes round 2 (AUD-H3, AUD-H4, AUD-H5, AUD-H6, AUD-M3, AUD-M5, AUD-M8)
+**Status:** done
+**Files touched:**
+- `internal/adapter/http_carrier.go` — transport limits, timer leak fix
+- `internal/repository/postgres.go` — connection pool tuning
+- `internal/orchestrator/orchestrator.go` — detached context for repo.Save
+- `internal/orchestrator/hedging.go` — sub-ms elapsed precision
+- `internal/handler/http.go` — `/healthz` endpoint
+- `cmd/carrier-gateway/main.go` — ADDR env var support
+- `Dockerfile` — distroless/static:nonroot
+**What:**
+1. **AUD-H3** — HTTPCarrier transport: MaxIdleConns=50, MaxIdleConnsPerHost=10, IdleConnTimeout=90s
+2. **AUD-H4** — Retry backoff uses time.NewTimer + Stop() instead of time.After
+3. **AUD-H5** — GET /healthz returns 200 "ok" for liveness probes
+4. **AUD-H6** — Docker runtime switched to distroless/static:nonroot (includes TLS root certs)
+5. **AUD-M3** — PostgreSQL pool: MaxOpenConns=25, MaxIdleConns=5, ConnMaxLifetime=5m
+6. **AUD-M5** — ADDR env var now used as default for -addr flag
+7. **AUD-M8** — repo.Save uses detached 3s context instead of potentially-cancelled parent
+**Why:** Production hardening from full codebase audit.
+**Next:** All fixes.md and audit findings resolved. Remaining low-priority items: FIX-L2 (DeltaQuoteID), FIX-M4 (nil-exec test coverage).
