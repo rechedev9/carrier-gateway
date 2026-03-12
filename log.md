@@ -163,4 +163,23 @@ Documented each with exact fix in `fixes.md`. Key findings:
 6. **AUD-M5** — ADDR env var now used as default for -addr flag
 7. **AUD-M8** — repo.Save uses detached 3s context instead of potentially-cancelled parent
 **Why:** Production hardening from full codebase audit.
-**Next:** All fixes.md and audit findings resolved. Remaining low-priority items: FIX-L2 (DeltaQuoteID), FIX-M4 (nil-exec test coverage).
+**Next:** FIX-L2, FIX-M4, and remaining cleanup.
+
+---
+
+### 2026-03-12 — Final audit cleanup (FIX-L2, FIX-M4, AUD-M4, AUD-M6)
+**Status:** done
+**Files touched:**
+- `internal/domain/quote.go` — added `CarrierRef`, removed dead `Coverage` struct
+- `internal/adapter/delta_carrier.go` — populates `CarrierRef` from `QuoteID`
+- `internal/handler/http.go` — surfaces `carrier_ref` in JSON response
+- `internal/orchestrator/orchestrator_test.go` — `TestOrchestrator_MissingRegistryEntry_NoPanic`
+- `internal/adapter/adapter_test.go` — consistent `io.Discard` loggers
+- `db/migrations/001_create_quotes.sql` — idempotent `IF NOT EXISTS`
+**What:**
+1. **FIX-L2** — `CarrierRef` field in `QuoteResult`, populated by Delta adapter, surfaced in JSON response
+2. **FIX-M4** — Test for nil-exec guard: carrier in carriers slice but missing from registry is skipped without panic
+3. **AUD-M6** — Removed dead `Coverage` struct and `Coverages` field (never populated by any adapter)
+4. **AUD-M4** — Migration file now idempotent (`IF NOT EXISTS`) to match inline DDL
+**Why:** Close out all remaining audit items.
+**Next:** All fixes.md and audit findings are resolved. System is production-ready.
