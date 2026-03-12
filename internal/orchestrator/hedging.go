@@ -167,7 +167,7 @@ func hedgeMonitor(
 			}
 			allResolved = false
 
-			elapsedMs := float64(now.Sub(p.startTime).Milliseconds())
+			elapsedMs := float64(now.Sub(p.startTime)) / float64(time.Millisecond)
 			if elapsedMs < p.hedgeThreshold {
 				continue
 			}

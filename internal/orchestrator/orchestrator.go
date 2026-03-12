@@ -231,7 +231,9 @@ func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) (
 	// Persist results for future cache hits. Fire-and-forget: a save failure
 	// must not degrade the response — we log the error and move on.
 	if o.repo != nil && req.RequestID != "" && len(collected) > 0 {
-		if err := o.repo.Save(ctx, req.RequestID, collected); err != nil {
+		saveCtx, saveCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer saveCancel()
+		if err := o.repo.Save(saveCtx, req.RequestID, collected); err != nil {
 			o.log.Warn("failed to save quotes to repository",
 				slog.String("request_id", req.RequestID),
 				slog.String("error", err.Error()),
