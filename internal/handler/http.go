@@ -96,6 +96,7 @@ type quoteResponse struct {
 // quoteItem is a single carrier result inside quoteResponse.
 type quoteItem struct {
 	CarrierID    string `json:"carrier_id"`
+	CarrierRef   string `json:"carrier_ref,omitempty"`
 	PremiumCents int64  `json:"premium_cents"`
 	Currency     string `json:"currency"`
 	IsHedged     bool   `json:"is_hedged"`
@@ -170,6 +171,7 @@ func (h *Handler) handlePostQuotes(w http.ResponseWriter, r *http.Request) {
 	for _, result := range results {
 		resp.Quotes = append(resp.Quotes, quoteItem{
 			CarrierID:    result.CarrierID,
+			CarrierRef:   result.CarrierRef,
 			PremiumCents: result.Premium.Amount,
 			Currency:     result.Premium.Currency,
 			IsHedged:     result.IsHedged,
