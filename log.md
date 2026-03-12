@@ -183,3 +183,57 @@ Documented each with exact fix in `fixes.md`. Key findings:
 4. **AUD-M4** — Migration file now idempotent (`IF NOT EXISTS`) to match inline DDL
 **Why:** Close out all remaining audit items.
 **Next:** All fixes.md and audit findings are resolved. System is production-ready.
+
+---
+
+### 2026-03-12 — Split orchestrator_test.go (file size limit)
+**Status:** done
+**Files touched:**
+- `internal/orchestrator/orchestrator_test.go` — trimmed to helpers + unit tests (247 lines)
+- `internal/orchestrator/orchestrator_integration_test.go` — new file with integration tests, benchmark (347 lines)
+**What:** Split 581-line `orchestrator_test.go` into two files to comply with the 500-line hard limit. Same package (`orchestrator_test`) so helpers are shared without duplication. Unit tests (Part 1) stay in original; integration/concurrency tests (Part 2), benchmark, and `MissingRegistryEntry_NoPanic` moved to new file.
+**Why:** CLAUDE.md file organization rule: 500 lines = error.
+**Next:** —
+
+---
+
+### 2026-03-12 — Rename orchestrator integration test + add e2e test
+**Status:** done
+**Files touched:**
+- `internal/orchestrator/orchestrator_integration_test.go` → `internal/orchestrator/orchestrator_concurrency_test.go` (renamed, header updated)
+- `cmd/carrier-gateway/e2e_test.go` (new, 260 lines)
+**What:** Renamed the orchestrator "integration" test to "concurrency" (accurate naming — these are mock-carrier concurrency tests, not real I/O). Added a true e2e test that boots the full composition root via `httptest.NewServer` and exercises real HTTP endpoints: healthz, happy-path quotes, invalid request (400), short-timeout excluding gamma, and metrics endpoint with `carrier_gateway_` prefix.
+**Why:** Accurate test naming and coverage of the full stack end-to-end without external dependencies.
+**Next:** —
+
+---
+
+### 2026-03-12 — Replace context.Background() with t.Context()/b.Context() in tests
+**Status:** done
+**Files touched:**
+- `internal/circuitbreaker/breaker_test.go` — 9 replacements, removed `"context"` import
+- `internal/adapter/mock_carrier_test.go` — 5 replacements
+- `internal/adapter/http_carrier_test.go` — 5 replacements
+- `internal/adapter/adapter_test.go` — 3 replacements (2 in goroutines: captured ctx before closure), removed `"context"` import
+- `internal/orchestrator/orchestrator_concurrency_test.go` — 9 replacements (goroutine + benchmark captured ctx before closure)
+- `internal/orchestrator/orchestrator_test.go` — 4 replacements, removed `"context"` import
+- `internal/ratelimiter/limiter_test.go` — 3 replacements
+- `internal/cleanup/ticker_test.go` — 3 replacements
+**What:** Replaced all 41 `context.Background()` calls in test files with `t.Context()` (or `b.Context()` in benchmarks). Go 1.24+ `t.Context()` returns a context auto-cancelled when the test ends, preventing leaked goroutines. Removed unused `"context"` imports from 3 files. Goroutine closures capture `ctx` before the `go func` to avoid calling `t.Context()` from a non-test goroutine.
+**Why:** Go skill convention: test code should use `t.Context()` instead of `context.Background()`.
+**Next:** —
+
+---
+
+### 2026-03-12 — CI/CD pipeline (GitHub Actions + golangci-lint config)
+**Status:** done
+**Files touched:**
+- `.github/workflows/ci.yml` (new)
+- `.github/workflows/release.yml` (new)
+- `.golangci.yml` (new)
+**What:** Added CI/CD pipeline:
+1. **CI workflow** (`ci.yml`) — triggers on push to `main` and all PRs. Four jobs: lint (golangci-lint), test (race detector + 80% coverage gate), build (binary + Docker image), scan (Trivy on built image).
+2. **Release workflow** (`release.yml`) — triggers on `v*` tag push. Docker publish to GHCR and changelog generation are scaffolded as commented-out jobs with TODO markers (need repo secrets/registry setup). Placeholder job ensures the workflow is valid.
+3. **Linter config** (`.golangci.yml`) — enables govet, errcheck, staticcheck, unused, gosimple, ineffassign. 5m timeout.
+**Why:** Improvement #1 from improvements.md — the project had no CI/CD pipeline.
+**Next:** —

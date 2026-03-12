@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # TODO: Enable after configuring GHCR access.
+  # Requires: repository write access to ghcr.io/<owner>/carrier-gateway.
+  #
+  # publish:
+  #   name: Publish Docker Image
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Log in to GHCR
+  #       uses: docker/login-action@v3
+  #       with:
+  #         registry: ghcr.io
+  #         username: ${{ github.actor }}
+  #         password: ${{ secrets.GITHUB_TOKEN }}
+  #
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
+  #
+  #     - name: Extract version from tag
+  #       id: version
+  #       run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+  #
+  #     - name: Build and push multi-arch image
+  #       uses: docker/build-push-action@v6
+  #       with:
+  #         context: .
+  #         push: true
+  #         platforms: linux/amd64,linux/arm64
+  #         tags: |
+  #           ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}
+  #           ghcr.io/${{ github.repository }}:latest
+
+  # TODO: Enable after first release. Generates changelog from commits since
+  # the previous tag using GitHub's auto-generated release notes.
+  #
+  # changelog:
+  #   name: Create GitHub Release
+  #   runs-on: ubuntu-latest
+  #   needs: [publish]
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #
+  #     - name: Create release
+  #       uses: softprops/action-gh-release@v2
+  #       with:
+  #         generate_release_notes: true
+
+  placeholder:
+    name: Release placeholder
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Release workflow triggered for ${{ github.ref_name }}. Enable publish and changelog jobs above."
