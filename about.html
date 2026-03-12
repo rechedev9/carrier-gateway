@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Carrier Gateway - Project Overview</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #181b24;
+      --surface-2: #1e222d;
+      --border: #2a2f3d;
+      --text: #e1e4eb;
+      --text-muted: #8b90a0;
+      --accent: #6c8cff;
+      --accent-dim: #3d5299;
+      --green: #5ccfa0;
+      --orange: #f0a05e;
+      --red: #e06070;
+      --purple: #b48eff;
+      --cyan: #56d4c8;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.7;
+      padding: 0;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #141824 0%, #1a1f35 50%, #181b24 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 80px 40px 60px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 50% 0%, rgba(108,140,255,0.06) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .hero h1 {
+      font-size: 2.8rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+
+    .hero h1 span { color: var(--accent); }
+
+    .hero p {
+      color: var(--text-muted);
+      font-size: 1.15rem;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    .badges {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 24px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    .badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-go { background: #00add8; }
+    .dot-hex { background: var(--purple); }
+    .dot-prom { background: var(--orange); }
+    .dot-pg { background: #336791; }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 32px 80px;
+    }
+
+    section { margin-bottom: 56px; }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h2 .icon {
+      font-size: 1.2rem;
+      width: 36px;
+      height: 36px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+
+    p, li {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    p { margin-bottom: 12px; }
+
+    /* Architecture diagram */
+    .arch-diagram {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      margin: 20px 0;
+      overflow-x: auto;
+    }
+
+    .arch-layers {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .arch-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .arch-box {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 20px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      text-align: center;
+      min-width: 120px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .arch-box:hover {
+      border-color: var(--accent-dim);
+      transform: translateY(-2px);
+    }
+
+    .arch-box .label {
+      font-weight: 600;
+      color: #fff;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .arch-box .desc {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-family: var(--font-sans);
+    }
+
+    .arch-box.domain { border-left: 3px solid var(--green); }
+    .arch-box.ports { border-left: 3px solid var(--cyan); }
+    .arch-box.infra { border-left: 3px solid var(--accent); }
+    .arch-box.surface { border-left: 3px solid var(--orange); }
+
+    .arch-arrow {
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      text-align: center;
+      opacity: 0.5;
+    }
+
+    /* Feature cards */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      transition: border-color 0.2s;
+    }
+
+    .feature-card:hover {
+      border-color: var(--accent-dim);
+    }
+
+    .feature-card h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .feature-card h3 .emoji { font-size: 1.3rem; }
+
+    /* API section */
+    .endpoint {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .endpoint-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .method {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 4px;
+      letter-spacing: 0.03em;
+    }
+
+    .method-post { background: rgba(108,140,255,0.15); color: var(--accent); }
+    .method-get { background: rgba(92,207,160,0.15); color: var(--green); }
+
+    .endpoint-path {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      color: #fff;
+    }
+
+    .endpoint-body {
+      padding: 16px 20px;
+    }
+
+    /* Code blocks */
+    pre {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+      margin: 12px 0;
+    }
+
+    pre .key { color: var(--cyan); }
+    pre .str { color: var(--green); }
+    pre .num { color: var(--orange); }
+    pre .comment { color: #555b6e; font-style: italic; }
+    pre .cmd { color: var(--accent); }
+
+    /* Carrier table */
+    .carrier-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 0.88rem;
+    }
+
+    .carrier-table th,
+    .carrier-table td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .carrier-table th {
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: var(--surface);
+    }
+
+    .carrier-table td {
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+    }
+
+    .carrier-table tr:hover td {
+      background: var(--surface);
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+
+    .status-fast { background: var(--green); }
+    .status-medium { background: var(--orange); }
+    .status-slow { background: var(--red); }
+    .status-http { background: var(--accent); }
+
+    /* Flow diagram */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 20px 0;
+      overflow-x: auto;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .flow-step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .flow-arrow {
+      color: var(--text-muted);
+      padding: 0 6px;
+      font-size: 1.1rem;
+      opacity: 0.4;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 40px 32px;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover { text-decoration: underline; }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .hero { padding: 48px 20px 40px; }
+      .hero h1 { font-size: 2rem; }
+      main { padding: 32px 16px 60px; }
+      .feature-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hero -->
+  <div class="hero">
+    <h1><span>Carrier</span> Gateway</h1>
+    <p>
+      A multi-carrier insurance quote aggregation API built with Go.
+      Fan-out to multiple carriers concurrently, deduplicate results, and return
+      the best quotes &mdash; sorted by price &mdash; in a single response.
+    </p>
+    <div class="badges">
+      <span class="badge"><span class="dot dot-go"></span> Go 1.25</span>
+      <span class="badge"><span class="dot dot-hex"></span> Hexagonal Architecture</span>
+      <span class="badge"><span class="dot dot-prom"></span> Prometheus Metrics</span>
+      <span class="badge"><span class="dot dot-pg"></span> PostgreSQL (optional)</span>
+    </div>
+  </div>
+
+  <main>
+
+    <!-- What It Does -->
+    <section>
+      <h2><span class="icon">&#9889;</span> What It Does</h2>
+      <p>
+        Carrier Gateway is an HTTP service that aggregates insurance quotes from multiple
+        carrier backends. When a client sends a quote request specifying coverage lines
+        (auto, homeowners, umbrella), the gateway:
+      </p>
+      <div class="flow">
+        <span class="flow-step">POST /quotes</span>
+        <span class="flow-arrow">&rarr;</span>
+        <span class="flow-step">Validate</span>
+        <span class="flow-arrow">&rarr;</span>
+        <span class="flow-step">Filter eligible carriers</span>
+        <span class="flow-arrow">&rarr;</span>
+        <span class="flow-step">Fan-out (parallel)</span>
+        <span class="flow-arrow">&rarr;</span>
+        <span class="flow-step">Collect &amp; deduplicate</span>
+        <span class="flow-arrow">&rarr;</span>
+        <span class="flow-step">Sort by price</span>
+        <span class="flow-arrow">&rarr;</span>
+        <span class="flow-step">JSON response</span>
+      </div>
+      <p>
+        Optionally caches quotes in PostgreSQL and returns cached results for
+        repeated requests with the same <code>request_id</code>.
+      </p>
+    </section>
+
+    <!-- Architecture -->
+    <section>
+      <h2><span class="icon">&#x1F3D7;</span> Architecture</h2>
+      <p>
+        Strict hexagonal (ports &amp; adapters) layering. Import direction is one-way
+        and never violated: inner layers know nothing about outer layers.
+      </p>
+      <div class="arch-diagram">
+        <div class="arch-layers">
+          <div class="arch-row">
+            <div class="arch-box surface">
+              <span class="label">handler</span>
+              <span class="desc">HTTP routes, validation, JSON</span>
+            </div>
+            <div class="arch-box surface">
+              <span class="label">cmd/main.go</span>
+              <span class="desc">Composition root</span>
+            </div>
+          </div>
+          <div class="arch-arrow">&darr;</div>
+          <div class="arch-row">
+            <div class="arch-box infra">
+              <span class="label">orchestrator</span>
+              <span class="desc">Fan-out, hedging, dedup</span>
+            </div>
+            <div class="arch-box infra">
+              <span class="label">circuitbreaker</span>
+              <span class="desc">3-state CAS machine</span>
+            </div>
+            <div class="arch-box infra">
+              <span class="label">ratelimiter</span>
+              <span class="desc">Token bucket per carrier</span>
+            </div>
+            <div class="arch-box infra">
+              <span class="label">adapter</span>
+              <span class="desc">Type-erased registry</span>
+            </div>
+            <div class="arch-box infra">
+              <span class="label">metrics</span>
+              <span class="desc">Prometheus recorder</span>
+            </div>
+          </div>
+          <div class="arch-arrow">&darr;</div>
+          <div class="arch-row">
+            <div class="arch-box ports">
+              <span class="label">ports</span>
+              <span class="desc">CarrierPort, OrchestratorPort, MetricsRecorder</span>
+            </div>
+          </div>
+          <div class="arch-arrow">&darr;</div>
+          <div class="arch-row">
+            <div class="arch-box domain">
+              <span class="label">domain</span>
+              <span class="desc">QuoteRequest, QuoteResult, Money, errors</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Features -->
+    <section>
+      <h2><span class="icon">&#x2728;</span> Key Features</h2>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <h3><span class="emoji">&#x26A1;</span> Concurrent Fan-Out</h3>
+          <p>
+            Queries all eligible carriers in parallel using <code>errgroup.WithContext</code>.
+            Results channel sized at <code>2&times;len(eligible)</code> to handle primary + hedge
+            per carrier without blocking.
+          </p>
+        </div>
+        <div class="feature-card">
+          <h3><span class="emoji">&#x1F3AF;</span> Adaptive Hedging</h3>
+          <p>
+            EMA tracker per carrier computes p95 latency. When a carrier exceeds
+            <code>p95 &times; HedgeMultiplier</code>, a hedge request fires automatically.
+            Warm-up suppresses hedging for the first 10 observations.
+          </p>
+        </div>
+        <div class="feature-card">
+          <h3><span class="emoji">&#x1F6E1;</span> Circuit Breaker</h3>
+          <p>
+            3-state machine (Closed / Open / HalfOpen) using <code>atomic.Int32</code> CAS.
+            HalfOpen allows exactly one probe goroutine. Carriers with Open breakers
+            are excluded before goroutines are spawned.
+          </p>
+        </div>
+        <div class="feature-card">
+          <h3><span class="emoji">&#x23F3;</span> Rate Limiting</h3>
+          <p>
+            Per-carrier token bucket via <code>golang.org/x/time/rate</code>.
+            <code>Wait()</code> blocks and records rejections.
+            <code>TryAcquire()</code> is non-blocking for hedge suppression.
+          </p>
+        </div>
+        <div class="feature-card">
+          <h3><span class="emoji">&#x1F4CA;</span> Prometheus Metrics</h3>
+          <p>
+            Isolated <code>prometheus.NewRegistry()</code> &mdash; never pollutes the global default.
+            8 metrics: CB state/transitions, hedges fired/won, rate limit rejections,
+            quotes issued/failed, and latency histogram.
+          </p>
+        </div>
+        <div class="feature-card">
+          <h3><span class="emoji">&#x1F5C4;</span> Quote Persistence</h3>
+          <p>
+            Optional PostgreSQL backend caches quotes by <code>request_id</code>.
+            Background cleanup ticker purges expired quotes every 5 minutes.
+            Graceful shutdown: ticker &rarr; HTTP drain &rarr; DB close.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Carriers -->
+    <section>
+      <h2><span class="icon">&#x1F69A;</span> Carriers</h2>
+      <p>Three built-in mock carriers with distinct latency/reliability profiles, plus an optional real HTTP carrier:</p>
+      <div style="overflow-x: auto;">
+        <table class="carrier-table">
+          <thead>
+            <tr>
+              <th>Carrier</th>
+              <th>Type</th>
+              <th>Latency</th>
+              <th>Failure Rate</th>
+              <th>Coverage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="status-dot status-fast"></span>Alpha</td>
+              <td>Mock</td>
+              <td>~50ms</td>
+              <td>0%</td>
+              <td>auto, homeowners</td>
+            </tr>
+            <tr>
+              <td><span class="status-dot status-medium"></span>Beta</td>
+              <td>Mock</td>
+              <td>~200ms</td>
+              <td>~10%</td>
+              <td>auto, umbrella</td>
+            </tr>
+            <tr>
+              <td><span class="status-dot status-slow"></span>Gamma</td>
+              <td>Mock</td>
+              <td>~800ms</td>
+              <td>0%</td>
+              <td>auto, homeowners, umbrella</td>
+            </tr>
+            <tr>
+              <td><span class="status-dot status-http"></span>Delta</td>
+              <td>HTTP</td>
+              <td>Variable</td>
+              <td>Variable</td>
+              <td>auto, homeowners</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        The adapter layer uses a generic <code>Adapter[Req, Resp]</code> interface with zero reflection.
+        <code>Register[Req, Resp]</code> captures typed functions into type-erased closures stored in a thread-safe Registry.
+      </p>
+    </section>
+
+    <!-- API Endpoints -->
+    <section>
+      <h2><span class="icon">&#x1F310;</span> API Endpoints</h2>
+
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/quotes</span>
+        </div>
+        <div class="endpoint-body">
+          <p>Request a batch of quotes from all eligible carriers.</p>
+          <h3>Request Body</h3>
+          <pre>{
+  <span class="key">"request_id"</span>:      <span class="str">"req-001"</span>,
+  <span class="key">"coverage_lines"</span>:  [<span class="str">"auto"</span>],
+  <span class="key">"timeout_ms"</span>:      <span class="num">5000</span>        <span class="comment">// optional, default 5000</span>
+}</pre>
+          <h3>Response (200 OK)</h3>
+          <pre>{
+  <span class="key">"request_id"</span>:  <span class="str">"req-001"</span>,
+  <span class="key">"duration_ms"</span>: <span class="num">87</span>,
+  <span class="key">"quotes"</span>: [
+    {
+      <span class="key">"carrier_id"</span>:    <span class="str">"alpha"</span>,
+      <span class="key">"carrier_ref"</span>:   <span class="str">""</span>,
+      <span class="key">"premium_cents"</span>: <span class="num">62340</span>,
+      <span class="key">"currency"</span>:      <span class="str">"USD"</span>,
+      <span class="key">"is_hedged"</span>:     <span class="num">false</span>,
+      <span class="key">"latency_ms"</span>:    <span class="num">52</span>
+    },
+    {
+      <span class="key">"carrier_id"</span>:    <span class="str">"beta"</span>,
+      <span class="key">"premium_cents"</span>: <span class="num">71200</span>,
+      <span class="key">"currency"</span>:      <span class="str">"USD"</span>,
+      <span class="key">"is_hedged"</span>:     <span class="num">false</span>,
+      <span class="key">"latency_ms"</span>:    <span class="num">85</span>
+    }
+  ]
+}</pre>
+          <h3>Error Responses</h3>
+          <p><strong>400</strong> &mdash; Invalid JSON, missing fields, unknown coverage line</p>
+          <p><strong>422</strong> &mdash; No eligible carriers for the requested coverage</p>
+          <p><strong>504</strong> &mdash; All carriers timed out</p>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/metrics</span>
+        </div>
+        <div class="endpoint-body">
+          <p>Prometheus-format metrics. All metrics are prefixed with <code>carrier_gateway_</code>.</p>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/healthz</span>
+        </div>
+        <div class="endpoint-body">
+          <p>Liveness probe. Returns <code>200 OK</code> with body <code>"ok"</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Start -->
+    <section>
+      <h2><span class="icon">&#x1F680;</span> Quick Start</h2>
+      <pre><span class="comment"># Build</span>
+<span class="cmd">go build</span> ./cmd/carrier-gateway
+
+<span class="comment"># Run (defaults to :8080)</span>
+<span class="cmd">go run</span> ./cmd/carrier-gateway
+
+<span class="comment"># Run on custom port</span>
+<span class="cmd">go run</span> ./cmd/carrier-gateway -addr :9090
+
+<span class="comment"># With PostgreSQL persistence</span>
+<span class="cmd">DATABASE_URL</span>=postgres://user:pass@localhost/carrier_gw <span class="cmd">go run</span> ./cmd/carrier-gateway
+
+<span class="comment"># With Delta HTTP carrier</span>
+<span class="cmd">DELTA_BASE_URL</span>=https://api.delta-insurance.example.com <span class="cmd">go run</span> ./cmd/carrier-gateway
+
+<span class="comment"># Test (race detector required)</span>
+<span class="cmd">go test</span> -race -count=1 ./...</pre>
+    </section>
+
+    <!-- Tech Stack -->
+    <section>
+      <h2><span class="icon">&#x1F9F0;</span> Tech Stack</h2>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <h3>Language &amp; Runtime</h3>
+          <p>Go 1.25 &mdash; stdlib <code>net/http</code> with Go 1.22+ <code>ServeMux</code> method routing.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Concurrency</h3>
+          <p><code>golang.org/x/sync/errgroup</code> for fan-out. <code>atomic.Int32</code> CAS for lock-free circuit breakers. <code>atomic.Pointer</code> CAS for EMA state.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Observability</h3>
+          <p><code>prometheus/client_golang</code> with isolated registry. Structured logging via <code>log/slog</code> (JSON output).</p>
+        </div>
+        <div class="feature-card">
+          <h3>Persistence</h3>
+          <p>PostgreSQL via <code>database/sql</code> + <code>lib/pq</code> driver. Optional &mdash; runs fully in-memory without a database.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Rate Limiting</h3>
+          <p><code>golang.org/x/time/rate</code> token bucket. Per-carrier isolation ensures one carrier's limits don't affect others.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Testing</h3>
+          <p>Race detector (<code>-race</code>) on all tests. <code>go.uber.org/goleak</code> for goroutine leak detection. E2E tests via <code>httptest.Server</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Project Structure -->
+    <section>
+      <h2><span class="icon">&#x1F4C1;</span> Project Structure</h2>
+      <pre>carrier-gateway/
+  cmd/carrier-gateway/
+    main.go              <span class="comment">// Composition root: wires all layers</span>
+    e2e_test.go          <span class="comment">// Full-stack HTTP tests</span>
+  internal/
+    domain/              <span class="comment">// Pure value types + sentinel errors (zero deps)</span>
+    ports/               <span class="comment">// Interface contracts (CarrierPort, OrchestratorPort, ...)</span>
+    circuitbreaker/      <span class="comment">// 3-state CAS circuit breaker</span>
+    ratelimiter/         <span class="comment">// Per-carrier token bucket</span>
+    orchestrator/        <span class="comment">// Fan-out, hedging, EMA tracker, dedup</span>
+    adapter/             <span class="comment">// Type-erased registry, mock carriers, HTTP carrier</span>
+    metrics/             <span class="comment">// Prometheus recorder (isolated registry)</span>
+    handler/             <span class="comment">// HTTP routes, validation, JSON encoding</span>
+    repository/          <span class="comment">// PostgreSQL quote cache</span>
+    cleanup/             <span class="comment">// Background expired-quote ticker</span>
+    testutil/            <span class="comment">// NoopRecorder for tests</span>
+  db/migrations/         <span class="comment">// SQL migration files</span>
+  deploy/                <span class="comment">// Dockerfile, k8s manifests</span></pre>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>
+      <strong>carrier-gateway</strong> &mdash;
+      built by <a href="https://github.com/rechedev9">rechedev9</a>
+    </p>
+  </footer>
+
+</body>
+</html>
