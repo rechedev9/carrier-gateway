@@ -175,7 +175,7 @@ func main() {
 
 	// --- HTTP handler and server ---
 	mux := http.NewServeMux()
-	h := handler.New(orch, rec, log)
+	h := handler.New(orch, rec, reg, log)
 	h.RegisterRoutes(mux)
 
 	srv := &http.Server{

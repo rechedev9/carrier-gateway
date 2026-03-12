@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/rechedev9/carrier-gateway/internal/domain"
@@ -31,24 +32,27 @@ const (
 // Handler holds all HTTP handler dependencies.
 // The zero value is not valid — use New.
 type Handler struct {
-	orch    ports.OrchestratorPort
-	metrics ports.MetricsRecorder
-	log     *slog.Logger
+	orch     ports.OrchestratorPort
+	metrics  ports.MetricsRecorder
+	gatherer prometheus.Gatherer
+	log      *slog.Logger
 }
 
 // New returns a Handler with all dependencies injected.
-func New(orch ports.OrchestratorPort, m ports.MetricsRecorder, log *slog.Logger) *Handler {
+// gatherer must be the same registry where carrier metrics are registered.
+func New(orch ports.OrchestratorPort, m ports.MetricsRecorder, gatherer prometheus.Gatherer, log *slog.Logger) *Handler {
 	return &Handler{
-		orch:    orch,
-		metrics: m,
-		log:     log,
+		orch:     orch,
+		metrics:  m,
+		gatherer: gatherer,
+		log:      log,
 	}
 }
 
 // RegisterRoutes registers POST /quotes and GET /metrics on mux.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /quotes", h.handlePostQuotes)
-	mux.HandleFunc("GET /metrics", promhttp.Handler().ServeHTTP)
+	mux.HandleFunc("GET /metrics", promhttp.HandlerFor(h.gatherer, promhttp.HandlerOpts{}).ServeHTTP)
 }
 
 // Shutdown drains in-flight requests using a 30-second drain context derived

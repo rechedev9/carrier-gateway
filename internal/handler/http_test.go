@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/rechedev9/carrier-gateway/internal/domain"
 	"github.com/rechedev9/carrier-gateway/internal/handler"
 	"github.com/rechedev9/carrier-gateway/internal/ports"
@@ -37,7 +39,8 @@ func newHandler(t *testing.T, orch ports.OrchestratorPort) *handler.Handler {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError + 1}))
 	rec := testutil.NewNoopRecorder()
-	return handler.New(orch, rec, log)
+	reg := prometheus.NewRegistry()
+	return handler.New(orch, rec, reg, log)
 }
 
 // doRequest sends a POST /quotes request with the given body and returns the recorder.
