@@ -49,10 +49,14 @@ func New(orch ports.OrchestratorPort, m ports.MetricsRecorder, gatherer promethe
 	}
 }
 
-// RegisterRoutes registers POST /quotes and GET /metrics on mux.
+// RegisterRoutes registers POST /quotes, GET /metrics, and GET /healthz on mux.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /quotes", h.handlePostQuotes)
 	mux.HandleFunc("GET /metrics", promhttp.HandlerFor(h.gatherer, promhttp.HandlerOpts{}).ServeHTTP)
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
 }
 
 // Shutdown drains in-flight requests using a 30-second drain context derived

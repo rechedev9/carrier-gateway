@@ -38,7 +38,11 @@ const exitCodeSuccess = 0
 const exitCodeDrainTimeout = 1
 
 func main() {
-	addr := flag.String("addr", ":8080", "HTTP listen address")
+	defaultAddr := ":8080"
+	if envAddr := os.Getenv("ADDR"); envAddr != "" {
+		defaultAddr = envAddr
+	}
+	addr := flag.String("addr", defaultAddr, "HTTP listen address")
 	flag.Parse()
 
 	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
