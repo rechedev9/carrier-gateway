@@ -1,0 +1,29 @@
+# Work artifacts (keep local, not in repo)
+bug.md
+fixes.md
+improvements.md
+go-research.md
+sdd-*.md
+about.html
+AGENTS.md
+log.md
+
+# Binaries
+carrier-gateway
+*.exe
+*.test
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage.out
