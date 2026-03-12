@@ -57,6 +57,31 @@ func TestEMATracker_P95ConvergesAfterObservations(t *testing.T) {
 	}
 }
 
+func TestEMATracker_ZeroAlphaDefaultsToPointOne(t *testing.T) {
+	t.Parallel()
+
+	seed := 200 * time.Millisecond
+	// Both alpha=0 and windowSize=0 — should default alpha to 0.1.
+	tracker := makeTracker(t, seed, 0, 0, 1.5)
+
+	seedP95 := tracker.P95()
+
+	// Record observations well below the seed to drive convergence.
+	for i := 0; i < 30; i++ {
+		tracker.Record(50 * time.Millisecond)
+	}
+
+	got := tracker.P95()
+	if got >= seedP95 {
+		t.Fatalf("P95 did not move from seed: seed=%v ms, got=%v ms", seedP95, got)
+	}
+	// With default alpha=0.1 and 30 observations at 50ms, P95 should drop
+	// significantly from the 400ms seed toward 50ms.
+	if got > 200 {
+		t.Fatalf("P95 barely moved: got %v ms, expected well below 200 ms", got)
+	}
+}
+
 func TestEMATracker_HedgeThresholdReturnMaxFloat64DuringWarmup(t *testing.T) {
 	t.Parallel()
 

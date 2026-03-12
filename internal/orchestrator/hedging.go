@@ -15,9 +15,6 @@ import (
 	"github.com/rechedev9/carrier-gateway/internal/ports"
 )
 
-// hedgePollInterval is how often the hedge monitor checks carrier latencies.
-const hedgePollInterval = 5 * time.Millisecond
-
 // adapterExecFn is a type-erased carrier call, equivalent to
 // adapter.AdapterFunc but defined locally to avoid importing internal/adapter
 // in hedging.go (which would create a dependency graph concern).
@@ -53,6 +50,9 @@ func NewEMATracker(
 	alpha := cfg.EMAAlpha
 	if cfg.EMAWindowSize > 0 {
 		alpha = 2.0 / (float64(cfg.EMAWindowSize) + 1)
+	}
+	if alpha <= 0 || alpha >= 1 {
+		alpha = 0.1
 	}
 	t := &EMATracker{
 		carrierID:  carrierID,
@@ -139,8 +139,9 @@ func hedgeMonitor(
 	req domain.QuoteRequest,
 	metrics ports.MetricsRecorder,
 	log *slog.Logger,
+	pollInterval time.Duration,
 ) {
-	ticker := time.NewTicker(hedgePollInterval)
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	// alreadyHedged tracks which primary carrier slots have had a hedge fired.
