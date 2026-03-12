@@ -6,6 +6,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,16 +37,19 @@ type Handler struct {
 	metrics  ports.MetricsRecorder
 	gatherer prometheus.Gatherer
 	log      *slog.Logger
+	db       *sql.DB // nil when no DB configured; used by /readyz
 }
 
 // New returns a Handler with all dependencies injected.
 // gatherer must be the same registry where carrier metrics are registered.
-func New(orch ports.OrchestratorPort, m ports.MetricsRecorder, gatherer prometheus.Gatherer, log *slog.Logger) *Handler {
+// db is optional — pass nil when no database is configured.
+func New(orch ports.OrchestratorPort, m ports.MetricsRecorder, gatherer prometheus.Gatherer, log *slog.Logger, db *sql.DB) *Handler {
 	return &Handler{
 		orch:     orch,
 		metrics:  m,
 		gatherer: gatherer,
 		log:      log,
+		db:       db,
 	}
 }
 
@@ -57,6 +61,26 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+	mux.HandleFunc("GET /readyz", h.handleReadyz)
+}
+
+// handleReadyz checks DB connectivity when a database is configured.
+// Returns 200 when healthy (or no DB), 503 when DB is unreachable.
+const readyzTimeout = 2 * time.Second
+
+func (h *Handler) handleReadyz(w http.ResponseWriter, r *http.Request) {
+	if h.db != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), readyzTimeout)
+		defer cancel()
+		if err := h.db.PingContext(ctx); err != nil {
+			h.log.Warn("readiness check failed", slog.String("error", err.Error()))
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("db: unreachable"))
+			return
+		}
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok"))
 }
 
 // Shutdown drains in-flight requests using a 30-second drain context derived

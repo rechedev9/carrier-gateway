@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -47,7 +48,15 @@ func main() {
 	addr := flag.String("addr", defaultAddr, "HTTP listen address")
 	flag.Parse()
 
-	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	var logLevel slog.LevelVar
+	logLevel.Set(slog.LevelInfo)
+	if raw := os.Getenv("LOG_LEVEL"); raw != "" {
+		var lvl slog.Level
+		if err := lvl.UnmarshalText([]byte(raw)); err == nil {
+			logLevel.Set(lvl)
+		}
+	}
+	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: &logLevel}))
 
 	// --- Prometheus registry ---
 	reg := prometheus.NewRegistry()
@@ -188,13 +197,30 @@ func main() {
 
 	// --- HTTP handler and server ---
 	mux := http.NewServeMux()
-	h := handler.New(orch, rec, reg, log)
+	h := handler.New(orch, rec, reg, log, db)
 	h.RegisterRoutes(mux)
 
-	skipAuth := []string{"/healthz", "/metrics"}
+	// --- Concurrency limit ---
+	const defaultMaxConcurrent = 100
+	maxConcurrent := defaultMaxConcurrent
+	if raw := os.Getenv("MAX_CONCURRENT_QUOTES"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			maxConcurrent = n
+		} else {
+			log.Warn("invalid MAX_CONCURRENT_QUOTES, using default",
+				slog.String("value", raw),
+				slog.Int("default", defaultMaxConcurrent),
+			)
+		}
+	}
+
+	skipAuth := []string{"/healthz", "/metrics", "/readyz"}
 	finalHandler := middleware.AuditLog(
 		middleware.SecurityHeaders(
-			middleware.RequireAPIKey(mux, apiKeys, skipAuth, log),
+			middleware.RequireAPIKey(
+				middleware.LimitConcurrency(mux, maxConcurrent, log),
+				apiKeys, skipAuth, log,
+			),
 		), log,
 	)
 

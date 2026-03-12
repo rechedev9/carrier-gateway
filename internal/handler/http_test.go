@@ -40,7 +40,7 @@ func newHandler(t *testing.T, orch ports.OrchestratorPort) *handler.Handler {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	rec := testutil.NewNoopRecorder()
 	reg := prometheus.NewRegistry()
-	return handler.New(orch, rec, reg, log)
+	return handler.New(orch, rec, reg, log, nil)
 }
 
 // doRequest sends a POST /quotes request with the given body and returns the recorder.

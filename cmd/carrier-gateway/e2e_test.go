@@ -119,7 +119,7 @@ func startTestServer(t *testing.T) *httptest.Server {
 	)
 
 	mux := http.NewServeMux()
-	h := handler.New(orch, rec, reg, log)
+	h := handler.New(orch, rec, reg, log, nil)
 	h.RegisterRoutes(mux)
 
 	srv := httptest.NewServer(mux)

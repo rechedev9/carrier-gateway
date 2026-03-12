@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/rechedev9/carrier-gateway/internal/adapter"
 	"github.com/rechedev9/carrier-gateway/internal/circuitbreaker"
@@ -46,6 +47,7 @@ type Orchestrator struct {
 	repo     ports.QuoteRepository // optional; nil disables persistence
 	cfg      Config
 	log      *slog.Logger
+	sfGroup  singleflight.Group // deduplicates concurrent requests with same request_id
 }
 
 // New constructs an Orchestrator with all dependencies injected.
@@ -94,11 +96,6 @@ func New(
 // fan-out and returns the cached results directly. On a cache miss, results
 // are saved after the fan-out completes.
 func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) ([]domain.QuoteResult, error) {
-	start := time.Now()
-	defer func() {
-		o.metrics.RecordFanOutDuration(time.Since(start))
-	}()
-
 	// Cache lookup — only when a repository is wired in.
 	if o.repo != nil && req.RequestID != "" {
 		if cached, ok, err := o.repo.FindByRequestID(ctx, req.RequestID); err != nil {
@@ -114,6 +111,36 @@ func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) (
 			return cached, nil
 		}
 	}
+
+	// Deduplicate concurrent requests with the same request_id.
+	// singleflight ensures only one fan-out runs per request_id; other callers
+	// share the result. We use context.WithoutCancel so the fan-out is not
+	// tied to the first caller's deadline — fanOut creates its own timeout
+	// from req.Timeout.
+	if req.RequestID != "" {
+		v, err, shared := o.sfGroup.Do(req.RequestID, func() (any, error) {
+			return o.fanOut(context.WithoutCancel(ctx), req)
+		})
+		if shared {
+			o.log.Debug("singleflight shared result",
+				slog.String("request_id", req.RequestID),
+			)
+		}
+		if err != nil {
+			return nil, err
+		}
+		return v.([]domain.QuoteResult), nil
+	}
+	return o.fanOut(ctx, req)
+}
+
+// fanOut performs the actual carrier fan-out, hedge monitoring, result
+// collection, sorting, and optional persistence.
+func (o *Orchestrator) fanOut(ctx context.Context, req domain.QuoteRequest) ([]domain.QuoteResult, error) {
+	start := time.Now()
+	defer func() {
+		o.metrics.RecordFanOutDuration(time.Since(start))
+	}()
 
 	timeout := req.Timeout
 	if timeout <= 0 {
@@ -131,12 +158,8 @@ func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) (
 		return []domain.QuoteResult{}, nil
 	}
 
-	// Buffered channel sized to hold one result per eligible carrier plus
-	// potential hedge results (up to len(eligible) hedges in the worst case).
 	results := make(chan domain.QuoteResult, len(eligible)*2)
 
-	// Build the hedgeCarrier slice for the hedge monitor — avoids importing
-	// circuitbreaker/ratelimiter from hedging.go.
 	hedgeable := make([]hedgeCarrier, 0, len(eligible))
 	for _, c := range eligible {
 		carrierID := c.ID
@@ -159,7 +182,6 @@ func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) (
 		})
 	}
 
-	// Build the pending map for hedgeMonitor — one entry per eligible carrier.
 	pending := make(map[string]pendingCarrier, len(eligible))
 	for _, c := range eligible {
 		pending[c.ID] = pendingCarrier{
@@ -170,29 +192,21 @@ func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) (
 
 	g, gCtx := errgroup.WithContext(reqCtx)
 
-	// Start hedge monitor inside the errgroup so the drain goroutine waits
-	// for both primary fan-out AND all hedge goroutines before closing results.
 	g.Go(func() error {
 		hedgeMonitor(gCtx, pending, results, hedgeable, req, o.metrics, o.log, o.cfg.HedgePollInterval)
 		return nil
 	})
 
-	// Fan out one goroutine per eligible carrier.
 	for _, c := range eligible {
-		carrier := c // capture for closure
+		carrier := c
 		g.Go(func() error {
 			return o.callCarrier(gCtx, carrier, req, results)
 		})
 	}
 
-	// Collect results until all fan-out goroutines complete or deadline fires.
-	// We do not wait for g.Wait() before collecting — the collector drains the
-	// channel concurrently so the buffer never blocks the writers.
 	collected := make([]domain.QuoteResult, 0, len(eligible))
 	seen := make(map[string]bool, len(eligible))
 
-	// drain runs in the current goroutine: waits for errgroup completion then
-	// closes the channel so the range below can terminate.
 	doneCh := make(chan struct{})
 	go func() {
 		_ = g.Wait()
@@ -213,7 +227,6 @@ func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) (
 	}
 	<-doneCh
 
-	// Sort results by premium ascending; use CarrierID as tiebreak for stability.
 	slices.SortFunc(collected, func(a, b domain.QuoteResult) int {
 		if n := cmp.Compare(a.Premium.Amount, b.Premium.Amount); n != 0 {
 			return n
@@ -225,11 +238,8 @@ func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) (
 		slog.String("request_id", req.RequestID),
 		slog.Int("eligible_carriers", len(eligible)),
 		slog.Int("results_returned", len(collected)),
-		slog.Duration("duration", time.Since(start)),
 	)
 
-	// Persist results for future cache hits. Fire-and-forget: a save failure
-	// must not degrade the response — we log the error and move on.
 	if o.repo != nil && req.RequestID != "" && len(collected) > 0 {
 		saveCtx, saveCancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer saveCancel()

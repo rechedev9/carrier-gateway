@@ -308,3 +308,23 @@ All metric names verified against `internal/metrics/prometheus.go`. All service 
 8. **NetworkPolicy** — ingress from ingress-nginx + monitoring namespaces on 8080; egress to postgres (5432), HTTPS (443), DNS (53)
 **Why:** Improvement #4 — production deployment needs K8s manifests.
 **Next:** —
+
+---
+
+### 2026-03-12 — Resilience & Observability Phase 3
+**Status:** done
+**Files touched:**
+- `cmd/carrier-gateway/main.go` — LOG_LEVEL parsing, MAX_CONCURRENT_QUOTES, /readyz skip-path, concurrency middleware wiring, db passed to handler
+- `internal/handler/http.go` — added `db *sql.DB` field, `/readyz` endpoint, updated New() signature
+- `internal/handler/http_test.go` — updated handler.New call (nil db)
+- `cmd/carrier-gateway/e2e_test.go` — updated handler.New call (nil db)
+- `internal/middleware/concurrency.go` — new file, semaphore-based concurrency limiter
+- `internal/orchestrator/orchestrator.go` — singleflight.Group for request deduplication, extracted fanOut method
+- `deploy/k8s/gateway.yaml` — readiness probe path changed to /readyz
+**What:**
+1. **LOG_LEVEL** — `slog.LevelVar` parses `LOG_LEVEL` env var (debug/info/warn/error, default info)
+2. **GET /readyz** — readiness probe checks `db.PingContext` when DB configured, returns 200/503
+3. **Concurrency limit** — `LimitConcurrency` middleware caps in-flight requests via buffered channel semaphore (default 100, configurable via `MAX_CONCURRENT_QUOTES`), returns 503 + `Retry-After: 1`
+4. **singleflight** — `singleflight.Group` in orchestrator deduplicates concurrent fan-outs with same `request_id`; cache hits bypass singleflight
+**Why:** Production resilience gaps: no log level control, no readiness probe, no request concurrency limit, no dedup for identical in-flight requests.
+**Next:** —
