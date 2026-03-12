@@ -114,3 +114,30 @@ Documented each with exact fix in `fixes.md`. Key findings:
 **What:** Added guard after alpha resolution in `NewEMATracker`: if `alpha <= 0 || alpha >= 1`, defaults to `0.1`. Added `TestEMATracker_ZeroAlphaDefaultsToPointOne` proving the tracker converges instead of freezing when both `EMAAlpha` and `EMAWindowSize` are zero.
 **Why:** Zero alpha + zero window size silently froze the EMA tracker — p95 never moved from seed (fixes.md H4).
 **Next:** Continue implementing fixes from fixes.md.
+
+---
+
+### 2026-03-12 — Batch audit fixes (FIX-C1, FIX-M1, FIX-H3, FIX-M2, FIX-M5, FIX-L1, FIX-L3, FIX-L4)
+**Status:** done
+**Files touched:**
+- `internal/handler/http.go` — added `prometheus.Gatherer` field, `requestID` param threading
+- `internal/handler/http_test.go` — updated for new `handler.New` signature, `io.Discard`
+- `cmd/carrier-gateway/main.go` — pass `reg` to handler, explicit orchestrator config
+- `internal/orchestrator/orchestrator.go` — hedgeMonitor into errgroup
+- `internal/orchestrator/hedging.go` — `sync.WaitGroup` for hedge goroutines, sub-ms EMA fix
+- `internal/orchestrator/orchestrator_test.go` — `io.Discard`
+- `internal/adapter/mock_carrier.go` — negative latency clamp
+- `internal/adapter/mock_carrier_test.go` — `io.Discard`
+- `internal/adapter/http_carrier_test.go` — `io.Discard`
+- `CLAUDE.md` — stale hedgeMonitor comment
+**What:**
+1. **FIX-C1** — `/metrics` now serves the isolated Prometheus registry via `promhttp.HandlerFor`
+2. **FIX-M1** — Hedge goroutines tracked by `sync.WaitGroup`; `hedgeMonitor` runs inside errgroup
+3. **FIX-H3** — Error logs use body `request_id` (falls back to `X-Request-ID` header pre-parse)
+4. **FIX-M2** — EMA uses float64 division instead of int64 truncation
+5. **FIX-M5** — MockCarrier clamps negative latency to 0
+6. **FIX-L1** — All test loggers use `io.Discard`
+7. **FIX-L3** — CLAUDE.md hedgeMonitor comment updated
+8. **FIX-L4** — Explicit `HedgePollInterval: 5ms` in main.go
+**Why:** Full audit pass. These were all remaining open items from fixes.md.
+**Next:** Remaining new audit findings (AUD-H3 through AUD-M8) — HTTP client transport limits, timer leak in retry, DB pool tuning, health endpoint, TLS certs in Docker image.
