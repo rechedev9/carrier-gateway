@@ -21,12 +21,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/rechedev9/carrier-gateway/internal/adapter"
-	"github.com/rechedev9/carrier-gateway/internal/middleware"
 	"github.com/rechedev9/carrier-gateway/internal/circuitbreaker"
 	"github.com/rechedev9/carrier-gateway/internal/cleanup"
 	"github.com/rechedev9/carrier-gateway/internal/domain"
 	"github.com/rechedev9/carrier-gateway/internal/handler"
 	"github.com/rechedev9/carrier-gateway/internal/metrics"
+	"github.com/rechedev9/carrier-gateway/internal/middleware"
 	"github.com/rechedev9/carrier-gateway/internal/orchestrator"
 	"github.com/rechedev9/carrier-gateway/internal/ports"
 	"github.com/rechedev9/carrier-gateway/internal/ratelimiter"

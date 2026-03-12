@@ -4,7 +4,6 @@ package middleware
 import (
 	"context"
 	"crypto/subtle"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -13,6 +12,9 @@ import (
 type contextKey int
 
 const clientIDKey contextKey = iota
+
+// unauthorizedBody is pre-marshalled to avoid per-rejection allocations.
+var unauthorizedBody = []byte(`{"error":"UNAUTHORIZED: missing or invalid API key"}` + "\n")
 
 // ClientIDFromContext returns the truncated API key identifier stored by
 // RequireAPIKey, or empty string if the request was unauthenticated.
@@ -27,16 +29,16 @@ func ClientIDFromContext(ctx context.Context) string {
 // Keys in skipPaths bypass authentication (e.g. /healthz, /metrics).
 // Each key is identified by its first 8 characters + "..." for logging.
 func RequireAPIKey(next http.Handler, keys []string, skipPaths []string, log *slog.Logger) http.Handler {
-	// Pre-build lookup: full key → truncated ID.
-	keyIDs := make(map[string]string, len(keys))
-	keyBytes := make([][]byte, 0, len(keys))
-	for _, k := range keys {
+	// Pre-build parallel slices: keyBytes for comparison, keyIDs for context.
+	keyBytes := make([][]byte, len(keys))
+	keyIDs := make([]string, len(keys))
+	for i, k := range keys {
+		keyBytes[i] = []byte(k)
 		id := k
 		if len(id) > 8 {
 			id = id[:8] + "..."
 		}
-		keyIDs[k] = id
-		keyBytes = append(keyBytes, []byte(k))
+		keyIDs[i] = id
 	}
 
 	skip := make(map[string]bool, len(skipPaths))
@@ -50,29 +52,42 @@ func RequireAPIKey(next http.Handler, keys []string, skipPaths []string, log *sl
 			return
 		}
 
-		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if token == "" || token == r.Header.Get("Authorization") {
+		raw := r.Header.Get("Authorization")
+		token := strings.TrimPrefix(raw, "Bearer ")
+		if token == "" || token == raw {
+			log.Warn("auth failed: missing bearer token",
+				slog.String("path", r.URL.Path),
+				slog.String("remote", r.RemoteAddr),
+			)
 			writeUnauthorized(w)
 			return
 		}
 
+		// Check all keys to avoid leaking which index matched via timing.
 		tokenB := []byte(token)
-		for _, kb := range keyBytes {
+		matchIdx := -1
+		for i, kb := range keyBytes {
 			if subtle.ConstantTimeCompare(tokenB, kb) == 1 {
-				ctx := context.WithValue(r.Context(), clientIDKey, keyIDs[string(kb)])
-				next.ServeHTTP(w, r.WithContext(ctx))
-				return
+				matchIdx = i
 			}
 		}
 
-		writeUnauthorized(w)
+		if matchIdx < 0 {
+			log.Warn("auth failed: invalid API key",
+				slog.String("path", r.URL.Path),
+				slog.String("remote", r.RemoteAddr),
+			)
+			writeUnauthorized(w)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), clientIDKey, keyIDs[matchIdx])
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func writeUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
-	json.NewEncoder(w).Encode(map[string]string{
-		"error": "UNAUTHORIZED: missing or invalid API key",
-	})
+	w.Write(unauthorizedBody)
 }

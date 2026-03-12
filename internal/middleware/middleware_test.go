@@ -39,46 +39,37 @@ func TestRequireAPIKey_ValidToken(t *testing.T) {
 	}
 }
 
-func TestRequireAPIKey_MissingHeader(t *testing.T) {
-	h := middleware.RequireAPIKey(echoHandler(), []string{"key1"}, nil, silentLog)
-	req := httptest.NewRequest(http.MethodPost, "/quotes", nil)
-	rec := httptest.NewRecorder()
-
-	h.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("got status %d, want 401", rec.Code)
-	}
-	var body map[string]string
-	json.NewDecoder(rec.Body).Decode(&body)
-	if body["error"] == "" {
-		t.Error("expected error field in response body")
-	}
-}
-
-func TestRequireAPIKey_InvalidToken(t *testing.T) {
+func TestRequireAPIKey_Rejected(t *testing.T) {
 	h := middleware.RequireAPIKey(echoHandler(), []string{"correct-key"}, nil, silentLog)
-	req := httptest.NewRequest(http.MethodPost, "/quotes", nil)
-	req.Header.Set("Authorization", "Bearer wrong-key")
-	rec := httptest.NewRecorder()
 
-	h.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("got status %d, want 401", rec.Code)
+	tests := []struct {
+		name   string
+		header string
+	}{
+		{"missing header", ""},
+		{"invalid token", "Bearer wrong-key"},
+		{"empty bearer", "Bearer "},
+		{"no bearer prefix", "Basic abc123"},
 	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/quotes", nil)
+			if tt.header != "" {
+				req.Header.Set("Authorization", tt.header)
+			}
+			rec := httptest.NewRecorder()
 
-func TestRequireAPIKey_EmptyBearer(t *testing.T) {
-	h := middleware.RequireAPIKey(echoHandler(), []string{"key1"}, nil, silentLog)
-	req := httptest.NewRequest(http.MethodPost, "/quotes", nil)
-	req.Header.Set("Authorization", "Bearer ")
-	rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
 
-	h.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("got status %d, want 401", rec.Code)
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("got status %d, want 401", rec.Code)
+			}
+			var body map[string]string
+			json.NewDecoder(rec.Body).Decode(&body)
+			if body["error"] == "" {
+				t.Error("expected error field in response body")
+			}
+		})
 	}
 }
 
@@ -86,12 +77,14 @@ func TestRequireAPIKey_SkipPaths(t *testing.T) {
 	h := middleware.RequireAPIKey(echoHandler(), []string{"key1"}, []string{"/healthz", "/metrics"}, silentLog)
 
 	for _, path := range []string{"/healthz", "/metrics"} {
-		req := httptest.NewRequest(http.MethodGet, path, nil)
-		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Errorf("path %s: got status %d, want 200", path, rec.Code)
-		}
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK {
+				t.Errorf("got status %d, want 200", rec.Code)
+			}
+		})
 	}
 }
 
@@ -131,7 +124,6 @@ func TestSecurityHeaders(t *testing.T) {
 // --- Audit log tests ---
 
 func TestAuditLog_LogsRequest(t *testing.T) {
-	// Use a handler that sets a known status code.
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 	})
@@ -147,7 +139,6 @@ func TestAuditLog_LogsRequest(t *testing.T) {
 }
 
 func TestAuditLog_CapturesDefaultStatus(t *testing.T) {
-	// Handler that writes body without explicit WriteHeader → implicit 200.
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
