@@ -3,6 +3,7 @@ module github.com/rechedev9/carrier-gateway
 go 1.25.0
 
 require (
+	github.com/lib/pq v1.11.2
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	go.uber.org/goleak v1.3.0

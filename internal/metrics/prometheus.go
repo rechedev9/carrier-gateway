@@ -27,7 +27,7 @@ const (
 
 // quoteLatencyBuckets are histogram bucket boundaries (seconds) for
 // carrier quote round-trip latency.
-var quoteLatencyBuckets = []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5}
+var quoteLatencyBuckets = []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0}
 
 // fanOutDurationBuckets are histogram bucket boundaries (seconds) for the
 // total GetQuotes fan-out duration.
