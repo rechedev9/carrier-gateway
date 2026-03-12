@@ -3,7 +3,6 @@
 package adapter_test
 
 import (
-	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -101,7 +100,7 @@ func TestRegistry_AdapterFuncRoundTrip(t *testing.T) {
 				Timeout:       500 * time.Millisecond,
 			}
 
-			result, err := fn(context.Background(), req)
+			result, err := fn(t.Context(), req)
 			if err != nil {
 				t.Fatalf("AdapterFunc returned error: %v", err)
 			}
@@ -158,6 +157,7 @@ func TestRegistry_ConcurrentAdapterInvocations_NoContamination(t *testing.T) {
 	const goroutines = 20
 	var wg sync.WaitGroup
 	errs := make([]error, goroutines*2)
+	ctx := t.Context()
 
 	for i := 0; i < goroutines; i++ {
 		wg.Add(2)
@@ -169,7 +169,7 @@ func TestRegistry_ConcurrentAdapterInvocations_NoContamination(t *testing.T) {
 				CoverageLines: []domain.CoverageLine{domain.CoverageLineAuto},
 				Timeout:       500 * time.Millisecond,
 			}
-			result, err := alphaFn(context.Background(), req)
+			result, err := alphaFn(ctx, req)
 			if err == nil && result.CarrierID != "alpha" {
 				errs[idx*2] = errors.New("alpha result has wrong carrier_id: " + result.CarrierID)
 			}
@@ -181,7 +181,7 @@ func TestRegistry_ConcurrentAdapterInvocations_NoContamination(t *testing.T) {
 				CoverageLines: []domain.CoverageLine{domain.CoverageLineAuto},
 				Timeout:       500 * time.Millisecond,
 			}
-			result, err := betaFn(context.Background(), req)
+			result, err := betaFn(ctx, req)
 			if err == nil && result.CarrierID != "beta" {
 				errs[idx*2+1] = errors.New("beta result has wrong carrier_id: " + result.CarrierID)
 			}

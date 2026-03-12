@@ -48,7 +48,7 @@ func TestHTTPCarrier_SuccessfulQuote(t *testing.T) {
 	}, testLog)
 
 	fn := adapter.RegisterDeltaCarrier(carrier)
-	result, err := fn(context.Background(), domain.QuoteRequest{
+	result, err := fn(t.Context(), domain.QuoteRequest{
 		RequestID:     "test-req-01",
 		CoverageLines: []domain.CoverageLine{domain.CoverageLineAuto},
 	})
@@ -100,7 +100,7 @@ func TestHTTPCarrier_RetryOn5xx(t *testing.T) {
 	}, testLog)
 
 	fn := adapter.RegisterDeltaCarrier(carrier)
-	result, err := fn(context.Background(), domain.QuoteRequest{
+	result, err := fn(t.Context(), domain.QuoteRequest{
 		RequestID:     "retry-req-01",
 		CoverageLines: []domain.CoverageLine{domain.CoverageLineAuto},
 	})
@@ -135,7 +135,7 @@ func TestHTTPCarrier_NoRetryOn4xx(t *testing.T) {
 	}, testLog)
 
 	fn := adapter.RegisterDeltaCarrier(carrier)
-	_, err := fn(context.Background(), domain.QuoteRequest{
+	_, err := fn(t.Context(), domain.QuoteRequest{
 		RequestID:     "noretry-req-01",
 		CoverageLines: []domain.CoverageLine{domain.CoverageLineAuto},
 	})
@@ -170,7 +170,7 @@ func TestHTTPCarrier_ContextCancellation(t *testing.T) {
 		Timeout:    10 * time.Second, // per-attempt timeout is long
 	}, testLog)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 
 	fn := adapter.RegisterDeltaCarrier(carrier)
@@ -200,7 +200,7 @@ func TestHTTPCarrier_AllAttemptsExhausted(t *testing.T) {
 	}, testLog)
 
 	fn := adapter.RegisterDeltaCarrier(carrier)
-	_, err := fn(context.Background(), domain.QuoteRequest{
+	_, err := fn(t.Context(), domain.QuoteRequest{
 		RequestID:     "exhaust-req-01",
 		CoverageLines: []domain.CoverageLine{domain.CoverageLineAuto},
 	})

@@ -32,7 +32,7 @@ func TestMockCarrier_AlphaReturnsWithinLatencyBound(t *testing.T) {
 	// Alpha config: BaseLatency=50ms, JitterMs=10, FailureRate=0.0
 	// Worst case latency = 50 + 10 = 60ms — well under 100ms.
 	mc := adapter.NewAlpha(devNull)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	start := time.Now()
 	resp, err := mc.Call(ctx, makeRequest("alpha-001"))
@@ -55,7 +55,7 @@ func TestMockCarrier_BetaFailureRateApproximatelyTenPercent(t *testing.T) {
 	// REQ-ADAPT-003: Beta returns ErrCarrierUnavailable at ~10% failure rate.
 	// Test with 100 calls; assert 5%–20% fail.
 	mc := adapter.NewBeta(devNull)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const calls = 100
 	failures := 0
@@ -84,7 +84,7 @@ func TestMockCarrier_GammaReturnsInLatencyWindow(t *testing.T) {
 	// Gamma config: BaseLatency=800ms, JitterMs=50, FailureRate=0.0
 	// Valid range: [750ms, 850ms] nominal; use 700ms–950ms to handle system jitter.
 	mc := adapter.NewGamma(devNull)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	start := time.Now()
 	resp, err := mc.Call(ctx, makeRequest("gamma-001"))
@@ -122,7 +122,7 @@ func TestMockCarrier_CtxCancellationExitsWithin10ms(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 			defer cancel()
 
 			start := time.Now()
@@ -146,7 +146,7 @@ func TestMockCarrier_GammaCtxCancellationReturnsError(t *testing.T) {
 
 	// Gamma (800ms) will always be cancelled by a 100ms context.
 	mc := adapter.NewGamma(devNull)
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 
 	start := time.Now()

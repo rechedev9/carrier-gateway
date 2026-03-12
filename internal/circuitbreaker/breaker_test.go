@@ -1,7 +1,6 @@
 package circuitbreaker_test
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -32,7 +31,7 @@ func TestBreaker_ClosedToOpenOnFailureThreshold(t *testing.T) {
 	t.Parallel()
 
 	b, _ := newBreaker(t, 3, 1, time.Second)
-	ctx := context.Background()
+	ctx := t.Context()
 	fn := func() error { return errFake }
 
 	for i := 0; i < 2; i++ {
@@ -59,7 +58,7 @@ func TestBreaker_SuccessResetsFailureCounter(t *testing.T) {
 	t.Parallel()
 
 	b, _ := newBreaker(t, 3, 1, time.Second)
-	ctx := context.Background()
+	ctx := t.Context()
 	failFn := func() error { return errFake }
 	okFn := func() error { return nil }
 
@@ -80,7 +79,7 @@ func TestBreaker_OpenShortCircuits(t *testing.T) {
 	t.Parallel()
 
 	b, _ := newBreaker(t, 1, 1, time.Hour) // long timeout keeps it Open
-	ctx := context.Background()
+	ctx := t.Context()
 	callCount := 0
 	fn := func() error {
 		callCount++
@@ -115,7 +114,7 @@ func TestBreaker_OpenToHalfOpenAfterTimeout(t *testing.T) {
 	t.Parallel()
 
 	b, _ := newBreaker(t, 1, 1, 20*time.Millisecond)
-	ctx := context.Background()
+	ctx := t.Context()
 	failFn := func() error { return errFake }
 
 	// Trip to Open.
@@ -140,7 +139,7 @@ func TestBreaker_HalfOpenToClosedOnSuccessThreshold(t *testing.T) {
 	t.Parallel()
 
 	b, _ := newBreaker(t, 1, 2, 20*time.Millisecond)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Trip to Open.
 	_ = b.Execute(ctx, func() error { return errFake })
@@ -167,7 +166,7 @@ func TestBreaker_HalfOpenToOpenOnProbeFailure(t *testing.T) {
 	t.Parallel()
 
 	b, _ := newBreaker(t, 1, 1, 20*time.Millisecond)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Trip to Open.
 	_ = b.Execute(ctx, func() error { return errFake })
@@ -189,7 +188,7 @@ func TestBreaker_HalfOpenConcurrentProbeEnforcement(t *testing.T) {
 	// Very long OpenTimeout — we'll manually advance to HalfOpen by letting
 	// a small timeout expire.
 	b, _ := newBreaker(t, 1, 1, 20*time.Millisecond)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Trip to Open.
 	_ = b.Execute(ctx, func() error { return errFake })
@@ -245,7 +244,7 @@ func TestBreaker_PrometheusGaugeEmittedOnTransition(t *testing.T) {
 	t.Parallel()
 
 	b, rec := newBreaker(t, 1, 1, 20*time.Millisecond)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	initialSetCB := rec.SetCBStateCount.Load()
 	initialTransitions := rec.RecordCBTransitionCount.Load()
@@ -277,7 +276,7 @@ func TestBreaker_ConcurrentExecute_NoRace(t *testing.T) {
 	t.Parallel()
 
 	b, _ := newBreaker(t, 5, 2, 10*time.Millisecond)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {

@@ -22,7 +22,7 @@ func TestLimiter_WaitAcquiresTokenWhenBucketHasCapacity(t *testing.T) {
 	t.Parallel()
 
 	l, _ := newLimiter(t, 100, 10)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := l.Wait(ctx); err != nil {
 		t.Fatalf("expected nil, got %v", err)
@@ -55,7 +55,7 @@ func TestLimiter_WaitReturnsErrRateLimitExceededOnCtxCancel(t *testing.T) {
 	// Drain the one burst token.
 	_ = l.TryAcquire()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	// Cancel immediately.
 	cancel()
 
@@ -83,7 +83,7 @@ func TestLimiter_PerCarrierIsolation(t *testing.T) {
 	la.TryAcquire()
 
 	// Exhausting alpha must not affect beta.
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := lb.Wait(ctx); err != nil {
 		t.Fatalf("beta Wait should succeed, got %v", err)
 	}
