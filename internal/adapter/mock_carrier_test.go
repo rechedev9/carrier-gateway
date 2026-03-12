@@ -4,8 +4,8 @@ package adapter_test
 
 import (
 	"context"
+	"io"
 	"log/slog"
-	"os"
 	"testing"
 	"time"
 
@@ -15,7 +15,7 @@ import (
 
 // devNull is a slog logger that discards all output; used in tests where log
 // output would clutter the test run.
-var devNull = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError + 1}))
+var devNull = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 // makeRequest returns a minimal QuoteRequest for mock carrier tests.
 func makeRequest(requestID string) adapter.MockRequest {

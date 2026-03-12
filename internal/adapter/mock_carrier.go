@@ -94,6 +94,9 @@ func (m *MockCarrier) Call(ctx context.Context, req MockRequest) (MockResponse, 
 		jitterMs = rand.Intn(m.cfg.JitterMs*2+1) - m.cfg.JitterMs
 	}
 	latency := m.cfg.BaseLatency + time.Duration(jitterMs)*time.Millisecond
+	if latency < 0 {
+		latency = 0
+	}
 
 	timer := time.NewTimer(latency)
 	defer timer.Stop()

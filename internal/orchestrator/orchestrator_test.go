@@ -8,8 +8,8 @@ package orchestrator_test
 
 import (
 	"context"
+	"io"
 	"log/slog"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -27,7 +27,7 @@ import (
 
 // ---- helpers ----------------------------------------------------------------
 
-var discardLog = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError + 1}))
+var discardLog = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 // makeCarrier builds a domain.Carrier with the given ID, capabilities, and config.
 func makeCarrier(id string, capabilities []domain.CoverageLine, cfg domain.CarrierConfig) domain.Carrier {
@@ -117,6 +117,7 @@ func (f *orchestratorFixture) build(t *testing.T) *orchestrator.Orchestrator {
 		f.metrics,
 		orchestrator.Config{HedgePollInterval: 5 * time.Millisecond},
 		discardLog,
+		nil, // no repository in unit tests
 	)
 }
 
@@ -505,6 +506,7 @@ func BenchmarkOrchestrator_GetQuotes_TwoCarriers(b *testing.B) {
 	orch := orchestrator.New(
 		fix.carriers, fix.registry, fix.breakers, fix.limiters, fix.trackers,
 		fix.metrics, orchestrator.Config{HedgePollInterval: 5 * time.Millisecond}, discardLog,
+		nil, // no repository in benchmarks
 	)
 
 	req := domain.QuoteRequest{

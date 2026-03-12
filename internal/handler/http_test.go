@@ -7,10 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -37,7 +37,7 @@ var _ ports.OrchestratorPort = (*mockOrchestrator)(nil)
 // newHandler builds a Handler with a mock orchestrator and a discard logger.
 func newHandler(t *testing.T, orch ports.OrchestratorPort) *handler.Handler {
 	t.Helper()
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError + 1}))
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	rec := testutil.NewNoopRecorder()
 	reg := prometheus.NewRegistry()
 	return handler.New(orch, rec, reg, log)
