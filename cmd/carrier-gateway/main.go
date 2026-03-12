@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"log/slog"
 	"net/http"
@@ -20,12 +21,14 @@ import (
 
 	"github.com/rechedev9/carrier-gateway/internal/adapter"
 	"github.com/rechedev9/carrier-gateway/internal/circuitbreaker"
+	"github.com/rechedev9/carrier-gateway/internal/cleanup"
 	"github.com/rechedev9/carrier-gateway/internal/domain"
 	"github.com/rechedev9/carrier-gateway/internal/handler"
 	"github.com/rechedev9/carrier-gateway/internal/metrics"
 	"github.com/rechedev9/carrier-gateway/internal/orchestrator"
 	"github.com/rechedev9/carrier-gateway/internal/ports"
 	"github.com/rechedev9/carrier-gateway/internal/ratelimiter"
+	"github.com/rechedev9/carrier-gateway/internal/repository"
 )
 
 // exitCodeSuccess is returned when the server shuts down cleanly.
@@ -47,6 +50,54 @@ func main() {
 	// --- Carrier definitions ---
 	carriers := buildCarriers()
 
+	// --- Optional PostgreSQL repository ---
+	// When DATABASE_URL is set the gateway caches quotes and returns them on
+	// repeated requests with the same request_id before the quote expires.
+	var (
+		repo ports.QuoteRepository
+		db   *sql.DB
+	)
+	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
+		var err error
+		db, err = repository.Open(dsn)
+		if err != nil {
+			log.Warn("postgres unavailable, running without persistence",
+				slog.String("error", err.Error()),
+			)
+		} else {
+			pg := repository.New(db)
+			if err := pg.Migrate(context.Background()); err != nil {
+				log.Warn("postgres migration failed, running without persistence",
+					slog.String("error", err.Error()),
+				)
+			} else {
+				repo = pg
+				log.Info("postgres repository connected")
+			}
+		}
+	}
+
+	// --- Expired-quote cleanup ticker ---
+	const defaultCleanupInterval = 5 * time.Minute
+	var cleanupTicker *cleanup.Ticker
+	if repo != nil {
+		interval := defaultCleanupInterval
+		if raw := os.Getenv("CLEANUP_INTERVAL"); raw != "" {
+			parsed, err := time.ParseDuration(raw)
+			if err != nil {
+				log.Warn("invalid CLEANUP_INTERVAL, using default",
+					slog.String("value", raw),
+					slog.String("error", err.Error()),
+					slog.Duration("default", defaultCleanupInterval),
+				)
+			} else {
+				interval = parsed
+			}
+		}
+		cleanupTicker = cleanup.New(repo, interval, log)
+		go cleanupTicker.Start(context.Background())
+	}
+
 	// --- Mock carrier instances ---
 	alphaCarrier := adapter.NewAlpha(log)
 	betaCarrier := adapter.NewBeta(log)
@@ -57,6 +108,40 @@ func main() {
 	reg2.Register("alpha", adapter.RegisterMockCarrier(alphaCarrier))
 	reg2.Register("beta", adapter.RegisterMockCarrier(betaCarrier))
 	reg2.Register("gamma", adapter.RegisterMockCarrier(gammaCarrier))
+
+	// --- Optional Delta (HTTP) carrier ---
+	// Registered only when DELTA_BASE_URL is configured — graceful degradation.
+	if baseURL := os.Getenv("DELTA_BASE_URL"); baseURL != "" {
+		deltaCarrier := adapter.NewDeltaCarrier(adapter.HTTPCarrierConfig{
+			BaseURL:    baseURL,
+			APIKey:     os.Getenv("DELTA_API_KEY"),
+			MaxRetries: 3,
+			RetryDelay: 100 * time.Millisecond,
+			Timeout:    2 * time.Second,
+		}, log)
+		reg2.Register("delta", adapter.RegisterDeltaCarrier(deltaCarrier))
+		carriers = append(carriers, domain.Carrier{
+			ID:           "delta",
+			Name:         "Delta Insurance",
+			Capabilities: []domain.CoverageLine{domain.CoverageLineAuto, domain.CoverageLineHomeowners},
+			Config: domain.CarrierConfig{
+				TimeoutHint:           300 * time.Millisecond,
+				FailureThreshold:      5,
+				SuccessThreshold:      2,
+				OpenTimeout:           30 * time.Second,
+				HedgeMultiplier:       1.5,
+				EMAAlpha:              0.1,
+				EMAWindowSize:         19,
+				EMAWarmupObservations: 10,
+				Priority:              4,
+				RateLimit: domain.RateLimitConfig{
+					TokensPerSecond: 50,
+					Burst:           5,
+				},
+			},
+		})
+		log.Info("delta carrier registered", slog.String("base_url", baseURL))
+	}
 
 	// --- Per-carrier infrastructure (breakers, limiters, trackers) ---
 	breakers := make(map[string]*circuitbreaker.Breaker, len(carriers))
@@ -85,6 +170,7 @@ func main() {
 		rec,
 		orchestrator.Config{},
 		log,
+		repo, // nil when DATABASE_URL is unset
 	)
 
 	// --- HTTP handler and server ---
@@ -96,6 +182,7 @@ func main() {
 		Addr:              *addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      35 * time.Second, // slightly longer than max request timeout
 		IdleTimeout:       60 * time.Second,
 	}
@@ -125,9 +212,22 @@ func main() {
 	}
 
 	// --- Graceful shutdown ---
+	if cleanupTicker != nil {
+		cleanupTicker.Stop()
+	}
+
 	if err := h.Shutdown(context.Background(), srv); err != nil {
 		log.Error("graceful shutdown failed", slog.String("error", err.Error()))
 		os.Exit(exitCodeDrainTimeout)
+	}
+
+	// --- Close DB connection pool ---
+	if db != nil {
+		if err := db.Close(); err != nil {
+			log.Warn("postgres connection close failed", slog.String("error", err.Error()))
+		} else {
+			log.Info("postgres connection closed")
+		}
 	}
 
 	os.Exit(exitCodeSuccess)
