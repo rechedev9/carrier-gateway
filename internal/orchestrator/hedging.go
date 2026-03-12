@@ -70,7 +70,7 @@ func NewEMATracker(
 // Record updates the EMA with a new latency observation and emits the p95 gauge.
 // Uses an atomic pointer swap to remain lock-free.
 func (t *EMATracker) Record(latency time.Duration) {
-	latencyMs := float64(latency.Milliseconds())
+	latencyMs := float64(latency) / float64(time.Millisecond)
 	for {
 		old := t.state.Load()
 		newP95 := t.alpha*latencyMs + (1-t.alpha)*old.p95

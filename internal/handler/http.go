@@ -115,18 +115,27 @@ func (h *Handler) handlePostQuotes(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 
+	// Before body is parsed, fall back to X-Request-ID header for log correlation.
+	headerID := r.Header.Get("X-Request-ID")
+
 	if err := dec.Decode(&req); err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
-			h.writeError(w, r, http.StatusBadRequest, "REQUEST_TOO_LARGE", "request body exceeds 1 MB limit")
+			h.writeError(w, r, http.StatusBadRequest, headerID, "REQUEST_TOO_LARGE", "request body exceeds 1 MB limit")
 			return
 		}
-		h.writeError(w, r, http.StatusBadRequest, "INVALID_JSON", "malformed JSON: "+err.Error())
+		h.writeError(w, r, http.StatusBadRequest, headerID, "INVALID_JSON", "malformed JSON: "+err.Error())
 		return
 	}
 
+	// After body is parsed, use the body's request_id for all log correlation.
+	requestID := req.RequestID
+	if requestID == "" {
+		requestID = headerID
+	}
+
 	if err := validateQuoteRequest(&req); err != nil {
-		h.writeError(w, r, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		h.writeError(w, r, http.StatusBadRequest, requestID, "INVALID_REQUEST", err.Error())
 		return
 	}
 
@@ -140,12 +149,12 @@ func (h *Handler) handlePostQuotes(w http.ResponseWriter, r *http.Request) {
 
 	results, err := h.orch.GetQuotes(r.Context(), domainReq)
 	if err != nil {
-		h.handleOrchError(w, r, err)
+		h.handleOrchError(w, r, requestID, err)
 		return
 	}
 
 	if len(results) == 0 {
-		h.writeError(w, r, http.StatusUnprocessableEntity, "NO_ELIGIBLE_CARRIERS", "no carriers available for the requested coverage lines")
+		h.writeError(w, r, http.StatusUnprocessableEntity, requestID, "NO_ELIGIBLE_CARRIERS", "no carriers available for the requested coverage lines")
 		return
 	}
 
@@ -181,11 +190,10 @@ func (h *Handler) handlePostQuotes(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleOrchError maps orchestrator errors to HTTP status codes.
-func (h *Handler) handleOrchError(w http.ResponseWriter, r *http.Request, err error) {
-	requestID := r.Header.Get("X-Request-ID")
+func (h *Handler) handleOrchError(w http.ResponseWriter, r *http.Request, requestID string, err error) {
 	switch {
 	case errors.Is(err, domain.ErrCarrierTimeout):
-		h.writeError(w, r, http.StatusGatewayTimeout, "TIMEOUT", "request timed out before carriers responded")
+		h.writeError(w, r, http.StatusGatewayTimeout, requestID, "TIMEOUT", "request timed out before carriers responded")
 	default:
 		h.log.Error("unexpected orchestrator error",
 			slog.String("request_id", requestID),
@@ -197,9 +205,9 @@ func (h *Handler) handleOrchError(w http.ResponseWriter, r *http.Request, err er
 }
 
 // writeError logs and writes a structured JSON error response.
-func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, status int, code, message string) {
+func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, status int, requestID, code, message string) {
 	attrs := []slog.Attr{
-		slog.String("request_id", r.Header.Get("X-Request-ID")),
+		slog.String("request_id", requestID),
 		slog.Int("status", status),
 		slog.String("code", code),
 		slog.String("message", message),
