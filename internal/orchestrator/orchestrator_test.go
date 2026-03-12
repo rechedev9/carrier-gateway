@@ -523,6 +523,53 @@ func BenchmarkOrchestrator_GetQuotes_TwoCarriers(b *testing.B) {
 	})
 }
 
+func TestOrchestrator_MissingRegistryEntry_NoPanic(t *testing.T) {
+	t.Parallel()
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	// FIX-M4: A carrier in the carriers slice but NOT in the adapter registry
+	// must not cause a panic. The carrier should be skipped silently.
+	alpha := makeCarrier("alpha", []domain.CoverageLine{domain.CoverageLineAuto}, defaultCfg())
+	ghost := makeCarrier("ghost", []domain.CoverageLine{domain.CoverageLineAuto}, defaultCfg())
+
+	fix := newFixture(t, []domain.Carrier{alpha, ghost})
+	// Remove ghost from the registry so it has no adapter.
+	fix.registry = adapter.NewRegistry()
+	// Re-register only alpha.
+	mc := adapter.NewMockCarrier("alpha", adapter.MockConfig{
+		BaseLatency: 10 * time.Millisecond,
+		FailureRate: 0.0,
+	}, discardLog)
+	fix.registry.Register("alpha", adapter.RegisterMockCarrier(mc))
+
+	orch := fix.build(t)
+
+	req := domain.QuoteRequest{
+		RequestID:     "nil-exec-01",
+		CoverageLines: []domain.CoverageLine{domain.CoverageLineAuto},
+		Timeout:       500 * time.Millisecond,
+	}
+	results, err := orch.GetQuotes(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Alpha should still respond; ghost should be absent.
+	for _, r := range results {
+		if r.CarrierID == "ghost" {
+			t.Fatal("ghost carrier (no adapter) should not appear in results")
+		}
+	}
+	hasAlpha := false
+	for _, r := range results {
+		if r.CarrierID == "alpha" {
+			hasAlpha = true
+		}
+	}
+	if !hasAlpha {
+		t.Fatal("alpha should still respond when ghost is missing from registry")
+	}
+}
+
 // ---- helpers ----------------------------------------------------------------
 
 func carrierIDs(results []domain.QuoteResult) []string {

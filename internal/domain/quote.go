@@ -25,18 +25,6 @@ type Money struct {
 	Currency string
 }
 
-// Coverage describes a single priced coverage item within a quote.
-type Coverage struct {
-	// Line is the line of business this coverage item applies to.
-	Line CoverageLine
-	// Label is a human-readable description of the coverage (e.g., "Bodily Injury Liability").
-	Label string
-	// Limit is the maximum payout amount for this coverage.
-	Limit Money
-	// Deductible is the out-of-pocket amount before coverage applies.
-	Deductible Money
-}
-
 // QuoteRequest is the inbound domain type for requesting carrier quotes.
 type QuoteRequest struct {
 	// RequestID is a caller-supplied unique identifier for this quote request.
@@ -55,10 +43,11 @@ type QuoteResult struct {
 	CarrierID string
 	// Premium is the total quoted premium across all requested coverage lines.
 	Premium Money
-	// Coverages is the breakdown of individual priced coverage items.
-	Coverages []Coverage
 	// ExpiresAt is the time after which this quote is no longer valid.
 	ExpiresAt time.Time
+	// CarrierRef is the carrier's internal quote reference (e.g., Delta's QuoteID).
+	// Empty for carriers that don't provide one.
+	CarrierRef string
 	// Latency is the round-trip time from fan-out to result receipt.
 	Latency time.Duration
 	// IsHedged is true when this result was produced by the hedge monitor,
