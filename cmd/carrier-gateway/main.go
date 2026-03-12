@@ -168,7 +168,7 @@ func main() {
 		limiters,
 		trackers,
 		rec,
-		orchestrator.Config{},
+		orchestrator.Config{HedgePollInterval: 5 * time.Millisecond},
 		log,
 		repo, // nil when DATABASE_URL is unset
 	)
