@@ -24,8 +24,9 @@ import (
 
 // startTestServer wires the full composition root (mirrors main.go) and returns
 // an httptest.Server. No DB, no Delta carrier — self-contained.
-func startTestServer(t *testing.T) *httptest.Server {
-	t.Helper()
+// Accepts testing.TB so it works in both *testing.T and *testing.F contexts.
+func startTestServer(tb testing.TB) *httptest.Server {
+	tb.Helper()
 
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	reg := prometheus.NewRegistry()
@@ -123,7 +124,7 @@ func startTestServer(t *testing.T) *httptest.Server {
 	h.RegisterRoutes(mux)
 
 	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
+	tb.Cleanup(srv.Close)
 	return srv
 }
 
