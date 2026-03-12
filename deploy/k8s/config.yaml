@@ -19,8 +19,8 @@ metadata:
 type: Opaque
 data:
   # Placeholder values — inject real secrets via SealedSecrets, ExternalSecrets, or CI.
-  # echo -n "changeme" | base64
-  API_KEYS: Y2hhbmdlbWU=
-  DATABASE_URL: cG9zdGdyZXM6Ly9jYXJyaWVyOnNlY3JldEBwb3N0Z3Jlczo1NDMyL2NhcnJpZXJfZ2F0ZXdheT9zc2xtb2RlPWRpc2FibGU=
+  # echo -n "<value>" | base64
+  API_KEYS: ""
+  DATABASE_URL: ""
   DELTA_BASE_URL: ""
   DELTA_API_KEY: ""

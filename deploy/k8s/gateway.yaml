@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: carrier-gateway
 spec:
-  replicas: 2
+  # replicas managed by HPA (minReplicas: 2)
   selector:
     matchLabels:
       app.kubernetes.io/name: carrier-gateway
@@ -21,10 +21,6 @@ spec:
         app.kubernetes.io/name: carrier-gateway
     spec:
       terminationGracePeriodSeconds: 35
-      securityContext:
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
@@ -61,10 +57,10 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 64Mi
+              memory: 128Mi
             limits:
               cpu: 500m
-              memory: 128Mi
+              memory: 256Mi
           securityContext:
             runAsNonRoot: true
             readOnlyRootFilesystem: true
@@ -72,6 +68,8 @@ spec:
             capabilities:
               drop:
                 - ALL
+            seccompProfile:
+              type: RuntimeDefault
 ---
 apiVersion: v1
 kind: Service
