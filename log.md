@@ -225,6 +225,25 @@ Documented each with exact fix in `fixes.md`. Key findings:
 
 ---
 
+### 2026-03-12 — Prometheus alert rules (Improvement #3)
+**Status:** done
+**Files touched:**
+- `deploy/prometheus/alerts.yml` (new)
+- `deploy/prometheus/prometheus.yml` (modified)
+- `docker-compose.yml` (modified)
+**What:** Added 5 Prometheus alerting rules for the carrier-gateway:
+1. **HighLatencyP99** (critical) — P99 quote latency > 2s for 5m
+2. **HighErrorRate** (critical) — error rate > 5% for 5m
+3. **CircuitBreakerOpen** (warning) — CB state == 1 (open) for 5m
+4. **ExcessiveHedging** (warning) — hedge-to-request ratio > 20% for 5m
+5. **RateLimitingActive** (warning) — rate limit rejections > 10/min for 5m
+
+Added `rule_files: ["alerts.yml"]` to prometheus.yml. Changed docker-compose Prometheus volume from single-file mount to directory mount so both config and alerts are available.
+**Why:** Improvement #3 from improvements.md — metrics existed but had no alerting.
+**Next:** —
+
+---
+
 ### 2026-03-12 — CI/CD pipeline (GitHub Actions + golangci-lint config)
 **Status:** done
 **Files touched:**
@@ -236,4 +255,35 @@ Documented each with exact fix in `fixes.md`. Key findings:
 2. **Release workflow** (`release.yml`) — triggers on `v*` tag push. Docker publish to GHCR and changelog generation are scaffolded as commented-out jobs with TODO markers (need repo secrets/registry setup). Placeholder job ensures the workflow is valid.
 3. **Linter config** (`.golangci.yml`) — enables govet, errcheck, staticcheck, unused, gosimple, ineffassign. 5m timeout.
 **Why:** Improvement #1 from improvements.md — the project had no CI/CD pipeline.
+**Next:** —
+
+---
+
+### 2026-03-12 — Operational runbook (Improvement #10)
+**Status:** done
+**Files touched:** `docs/runbook.md` (new, 439 lines)
+**What:** Created operational runbook covering:
+1. Service overview (endpoints, topology, env vars, carriers, shutdown sequence)
+2. Incident response playbook (severity levels, escalation, war room checklist, post-incident template)
+3. Alert-specific runbooks for all 5 Prometheus alerts (HighLatencyP99, HighErrorRate, CircuitBreakerOpen, ExcessiveHedging, RateLimitingActive) — each with PromQL, diagnosis steps, and resolution
+4. Common diagnostic commands (docker compose, curl, psql, Prometheus API)
+5. Rollback procedure (docker compose + future CI/CD + database)
+6. Grafana panel queries quick reference (10 panels)
+All metric names verified against `internal/metrics/prometheus.go`. All service names verified against `docker-compose.yml`.
+**Why:** Improvement #10 from improvements.md — on-call engineers had no playbook for responding to alerts.
+**Next:** —
+
+---
+
+### 2026-03-12 — API key authentication middleware (Improvement #2 — Phase 2)
+**Status:** done
+**Files touched:**
+- `internal/middleware/auth.go` (new) — RequireAPIKey middleware with constant-time comparison, skip-paths, context-based client ID
+- `internal/middleware/security.go` (new) — SecurityHeaders middleware (X-Content-Type-Options, HSTS)
+- `internal/middleware/audit.go` (new) — AuditLog middleware with statusRecorder, logs method/path/status/duration/client_id
+- `internal/middleware/middleware_test.go` (new) — 8 tests covering auth, security headers, audit logging
+- `cmd/carrier-gateway/main.go` (modified) — API_KEYS env var parsing, fail-closed exit, middleware chain wiring
+- `.env.example` (modified) — added API_KEYS entry
+**What:** Added API key authentication, security headers, and audit logging middleware. `/quotes` requires `Authorization: Bearer <key>`, while `/healthz` and `/metrics` bypass auth. Keys compared with `crypto/subtle.ConstantTimeCompare`. Client identity (truncated key) stored in request context for audit logging. Gateway refuses to start without API_KEYS configured (fail-closed).
+**Why:** Improvement #2 from improvements.md — all endpoints were open with zero authentication.
 **Next:** —

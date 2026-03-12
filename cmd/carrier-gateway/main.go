@@ -14,12 +14,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/rechedev9/carrier-gateway/internal/adapter"
+	"github.com/rechedev9/carrier-gateway/internal/middleware"
 	"github.com/rechedev9/carrier-gateway/internal/circuitbreaker"
 	"github.com/rechedev9/carrier-gateway/internal/cleanup"
 	"github.com/rechedev9/carrier-gateway/internal/domain"
@@ -177,14 +179,28 @@ func main() {
 		repo, // nil when DATABASE_URL is unset
 	)
 
+	// --- API key authentication ---
+	apiKeys := parseAPIKeys(os.Getenv("API_KEYS"))
+	if len(apiKeys) == 0 {
+		log.Error("API_KEYS env var is required (comma-separated bearer tokens)")
+		os.Exit(1)
+	}
+
 	// --- HTTP handler and server ---
 	mux := http.NewServeMux()
 	h := handler.New(orch, rec, reg, log)
 	h.RegisterRoutes(mux)
 
+	skipAuth := []string{"/healthz", "/metrics"}
+	finalHandler := middleware.AuditLog(
+		middleware.SecurityHeaders(
+			middleware.RequireAPIKey(mux, apiKeys, skipAuth, log),
+		), log,
+	)
+
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           mux,
+		Handler:           finalHandler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      35 * time.Second, // slightly longer than max request timeout
@@ -302,6 +318,18 @@ func buildCarriers() []domain.Carrier {
 			},
 		},
 	}
+}
+
+// parseAPIKeys splits a comma-separated string into non-empty keys.
+func parseAPIKeys(raw string) []string {
+	var keys []string
+	for _, k := range strings.Split(raw, ",") {
+		k = strings.TrimSpace(k)
+		if k != "" {
+			keys = append(keys, k)
+		}
+	}
+	return keys
 }
 
 // Compile-time assertion that *orchestrator.Orchestrator satisfies OrchestratorPort.
