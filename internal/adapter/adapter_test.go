@@ -5,8 +5,8 @@ package adapter_test
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -19,7 +19,7 @@ import (
 // for the given carrier IDs.
 func newRegistryWithMocks(t *testing.T, ids ...string) *adapter.Registry {
 	t.Helper()
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	reg := adapter.NewRegistry()
 	for _, id := range ids {
 		mc := adapter.NewMockCarrier(id, adapter.MockConfig{
@@ -137,7 +137,7 @@ func TestRegistry_ConcurrentAdapterInvocations_NoContamination(t *testing.T) {
 
 	// REQ-ADAPT-004: two adapters with different internal state can be retrieved
 	// and invoked concurrently without cross-contamination of results.
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	reg := adapter.NewRegistry()
 
 	alphaCarrier := adapter.NewMockCarrier("alpha", adapter.MockConfig{
