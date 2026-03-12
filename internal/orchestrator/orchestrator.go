@@ -43,6 +43,7 @@ type Orchestrator struct {
 	limiters map[string]*ratelimiter.Limiter
 	trackers map[string]*EMATracker
 	metrics  ports.MetricsRecorder
+	repo     ports.QuoteRepository // optional; nil disables persistence
 	cfg      Config
 	log      *slog.Logger
 }
@@ -50,6 +51,10 @@ type Orchestrator struct {
 // New constructs an Orchestrator with all dependencies injected.
 // carriers, registry, breakers, limiters, and trackers must be fully
 // populated before New is called — the Orchestrator does not modify them.
+//
+// repo is optional: pass nil to disable quote caching and persistence.
+// When non-nil, GetQuotes checks the cache before fanning out and saves
+// results after the fan-out completes.
 func New(
 	carriers []domain.Carrier,
 	registry *adapter.Registry,
@@ -59,6 +64,7 @@ func New(
 	metrics ports.MetricsRecorder,
 	cfg Config,
 	log *slog.Logger,
+	repo ports.QuoteRepository,
 ) *Orchestrator {
 	if cfg.HedgePollInterval <= 0 {
 		cfg.HedgePollInterval = defaultHedgePollInterval
@@ -70,6 +76,7 @@ func New(
 		limiters: limiters,
 		trackers: trackers,
 		metrics:  metrics,
+		repo:     repo,
 		cfg:      cfg,
 		log:      log,
 	}
@@ -81,11 +88,32 @@ func New(
 // concurrent hedge monitor, collects and deduplicates results, then returns
 // them sorted by premium ascending. Partial results are returned when the
 // request context deadline arrives before all carriers respond.
+//
+// When a QuoteRepository is configured, GetQuotes first checks the cache.
+// A cache hit (non-expired results for req.RequestID) short-circuits the
+// fan-out and returns the cached results directly. On a cache miss, results
+// are saved after the fan-out completes.
 func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) ([]domain.QuoteResult, error) {
 	start := time.Now()
 	defer func() {
 		o.metrics.RecordFanOutDuration(time.Since(start))
 	}()
+
+	// Cache lookup — only when a repository is wired in.
+	if o.repo != nil && req.RequestID != "" {
+		if cached, ok, err := o.repo.FindByRequestID(ctx, req.RequestID); err != nil {
+			o.log.Warn("cache lookup failed, proceeding with fan-out",
+				slog.String("request_id", req.RequestID),
+				slog.String("error", err.Error()),
+			)
+		} else if ok {
+			o.log.Info("cache hit, returning stored quotes",
+				slog.String("request_id", req.RequestID),
+				slog.Int("count", len(cached)),
+			)
+			return cached, nil
+		}
+	}
 
 	timeout := req.Timeout
 	if timeout <= 0 {
@@ -115,7 +143,13 @@ func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) (
 		breaker := o.breakers[carrierID]
 		limiter := o.limiters[carrierID]
 		tracker := o.trackers[carrierID]
-		execFn, _ := o.registry.Get(carrierID)
+		execFn, ok := o.registry.Get(carrierID)
+		if !ok {
+			o.log.Error("no adapter registered for carrier, skipping hedge",
+				slog.String("carrier_id", carrierID),
+			)
+			continue
+		}
 		hedgeable = append(hedgeable, hedgeCarrier{
 			carrier:    c,
 			p95Ms:      tracker.P95(),
@@ -136,8 +170,12 @@ func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) (
 
 	g, gCtx := errgroup.WithContext(reqCtx)
 
-	// Start hedge monitor alongside the fan-out goroutines.
-	go hedgeMonitor(gCtx, pending, results, hedgeable, req, o.metrics, o.log)
+	// Start hedge monitor inside the errgroup so the drain goroutine waits
+	// for both primary fan-out AND all hedge goroutines before closing results.
+	g.Go(func() error {
+		hedgeMonitor(gCtx, pending, results, hedgeable, req, o.metrics, o.log, o.cfg.HedgePollInterval)
+		return nil
+	})
 
 	// Fan out one goroutine per eligible carrier.
 	for _, c := range eligible {
@@ -189,6 +227,17 @@ func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) (
 		slog.Int("results_returned", len(collected)),
 		slog.Duration("duration", time.Since(start)),
 	)
+
+	// Persist results for future cache hits. Fire-and-forget: a save failure
+	// must not degrade the response — we log the error and move on.
+	if o.repo != nil && req.RequestID != "" && len(collected) > 0 {
+		if err := o.repo.Save(ctx, req.RequestID, collected); err != nil {
+			o.log.Warn("failed to save quotes to repository",
+				slog.String("request_id", req.RequestID),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
 
 	return collected, nil
 }

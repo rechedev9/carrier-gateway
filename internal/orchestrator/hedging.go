@@ -8,6 +8,7 @@ import (
 	"context"
 	"log/slog"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -141,6 +142,9 @@ func hedgeMonitor(
 	log *slog.Logger,
 	pollInterval time.Duration,
 ) {
+	var hedgeWg sync.WaitGroup
+	defer hedgeWg.Wait()
+
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
@@ -197,7 +201,9 @@ func hedgeMonitor(
 
 			execFn := candidate.exec
 			hedgeCarrierID := candidate.carrier.ID
+			hedgeWg.Add(1)
 			go func() {
+				defer hedgeWg.Done()
 				result, err := execFn(ctx, req)
 				if err != nil {
 					return
