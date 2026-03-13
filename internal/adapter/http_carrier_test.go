@@ -184,6 +184,44 @@ func TestHTTPCarrier_ContextCancellation(t *testing.T) {
 	}
 }
 
+func TestHTTPCarrier_OversizedResponseRejected(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Write a valid JSON opening, then pad with enough data to exceed 10 MiB.
+		// The key insight: io.LimitReader will cut the stream, causing a JSON
+		// decode error (unexpected EOF) before the full body is read into memory.
+		w.Write([]byte(`{"quote_id":"`))
+		chunk := make([]byte, 32*1024) // 32 KiB chunks of 'a'
+		for i := range chunk {
+			chunk[i] = 'a'
+		}
+		// Write ~11 MiB of padding.
+		for range 352 {
+			w.Write(chunk)
+		}
+		w.Write([]byte(`"}`))
+	}))
+	defer srv.Close()
+
+	carrier := adapter.NewDeltaCarrier(adapter.HTTPCarrierConfig{
+		BaseURL:    srv.URL,
+		MaxRetries: 0,
+		Timeout:    5 * time.Second,
+	}, testLog)
+
+	fn := adapter.RegisterDeltaCarrier(carrier)
+	_, err := fn(t.Context(), domain.QuoteRequest{
+		RequestID:     "oversize-req-01",
+		CoverageLines: []domain.CoverageLine{domain.CoverageLineAuto},
+	})
+
+	if err == nil {
+		t.Fatal("expected error for oversized response, got nil")
+	}
+}
+
 func TestHTTPCarrier_AllAttemptsExhausted(t *testing.T) {
 	t.Parallel()
 

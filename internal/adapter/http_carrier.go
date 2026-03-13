@@ -12,6 +12,9 @@ import (
 	"time"
 )
 
+// maxResponseBytes caps carrier response body reads to prevent OOM.
+const maxResponseBytes = 10 << 20 // 10 MiB
+
 // HTTPCarrierConfig configures the HTTP carrier client.
 type HTTPCarrierConfig struct {
 	// BaseURL is the carrier API root (e.g. "https://api.delta-insurance.com").
@@ -149,7 +152,9 @@ func (h *HTTPCarrier) doOnce(ctx context.Context, url string, payload []byte, ou
 		return resp.StatusCode, fmt.Errorf("status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	// Cap response body to prevent OOM from oversized carrier responses (SEC-5).
+	limited := io.LimitReader(resp.Body, maxResponseBytes)
+	if err := json.NewDecoder(limited).Decode(out); err != nil {
 		return resp.StatusCode, fmt.Errorf("decode response: %w", err)
 	}
 	return resp.StatusCode, nil
