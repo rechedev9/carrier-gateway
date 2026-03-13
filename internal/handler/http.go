@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/rechedev9/carrier-gateway/internal/domain"
+	"github.com/rechedev9/carrier-gateway/internal/middleware"
 	"github.com/rechedev9/carrier-gateway/internal/ports"
 )
 
@@ -27,6 +28,7 @@ const (
 	defaultTimeoutMs    = 5_000            // 5 seconds
 	minTimeoutMs        = 100              // 100 ms
 	maxTimeoutMs        = 30_000           // 30 seconds
+	maxRequestIDLen     = 256              // caps memory/DB impact from oversized IDs
 	shutdownDrainWindow = 30 * time.Second // graceful drain timeout
 )
 
@@ -153,7 +155,11 @@ func (h *Handler) handlePostQuotes(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, r, http.StatusBadRequest, headerID, "REQUEST_TOO_LARGE", "request body exceeds 1 MB limit")
 			return
 		}
-		h.writeError(w, r, http.StatusBadRequest, headerID, "INVALID_JSON", "malformed JSON: "+err.Error())
+		h.log.Info("JSON decode error",
+			slog.String("error", err.Error()),
+			slog.String("remote", r.RemoteAddr),
+		)
+		h.writeError(w, r, http.StatusBadRequest, headerID, "INVALID_JSON", "malformed JSON body")
 		return
 	}
 
@@ -169,6 +175,7 @@ func (h *Handler) handlePostQuotes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	domainReq := buildDomainRequest(&req)
+	domainReq.ClientID = middleware.ClientIDFromContext(r.Context())
 
 	h.log.Info("quote request received",
 		slog.String("request_id", domainReq.RequestID),
@@ -267,6 +274,14 @@ func (h *Handler) writeErrorBody(w http.ResponseWriter, status int, message stri
 func validateQuoteRequest(req *quoteRequest) error {
 	if req.RequestID == "" {
 		return fmt.Errorf("%w: request_id is required", domain.ErrInvalidRequest)
+	}
+	if len(req.RequestID) > maxRequestIDLen {
+		return fmt.Errorf("%w: request_id exceeds %d characters", domain.ErrInvalidRequest, maxRequestIDLen)
+	}
+	for _, c := range req.RequestID {
+		if c < 0x20 || c > 0x7E {
+			return fmt.Errorf("%w: request_id contains invalid characters", domain.ErrInvalidRequest)
+		}
 	}
 	if len(req.CoverageLines) == 0 {
 		return fmt.Errorf("%w: coverage_lines must contain at least one entry", domain.ErrInvalidRequest)

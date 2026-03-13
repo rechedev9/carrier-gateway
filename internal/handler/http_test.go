@@ -248,6 +248,58 @@ func TestHandler_GetMetrics_Returns200WithPrometheusBody(t *testing.T) {
 	}
 }
 
+func TestHandler_PostQuotes_LongRequestID_Returns400(t *testing.T) {
+	t.Parallel()
+
+	h := newHandler(t, &mockOrchestrator{})
+	longID := strings.Repeat("a", 257) // exceeds maxRequestIDLen (256)
+	body := `{"request_id":"` + longID + `","coverage_lines":["auto"]}`
+	w := doRequest(t, h, body)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	var body2 errorBody
+	_ = json.NewDecoder(w.Body).Decode(&body2)
+	if !strings.Contains(body2.Error, "INVALID_REQUEST") {
+		t.Fatalf("error body = %q, want INVALID_REQUEST", body2.Error)
+	}
+}
+
+func TestHandler_PostQuotes_ControlCharRequestID_Returns400(t *testing.T) {
+	t.Parallel()
+
+	h := newHandler(t, &mockOrchestrator{})
+	body := `{"request_id":"req\n001","coverage_lines":["auto"]}`
+	w := doRequest(t, h, body)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	var body2 errorBody
+	_ = json.NewDecoder(w.Body).Decode(&body2)
+	if !strings.Contains(body2.Error, "INVALID_REQUEST") {
+		t.Fatalf("error body = %q, want INVALID_REQUEST", body2.Error)
+	}
+}
+
+func TestHandler_PostQuotes_MalformedJSON_DoesNotLeakFieldNames(t *testing.T) {
+	t.Parallel()
+
+	// SEC-11: ensure the error response doesn't contain schema field names
+	h := newHandler(t, &mockOrchestrator{})
+	w := doRequest(t, h, `{"request_id": "r1", "unknown_field": true}`)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+	var body2 errorBody
+	_ = json.NewDecoder(w.Body).Decode(&body2)
+	if strings.Contains(body2.Error, "unknown_field") {
+		t.Fatalf("error response must not leak field names, got %q", body2.Error)
+	}
+}
+
 func TestHandler_PostQuotes_TableDriven_ValidationErrors(t *testing.T) {
 	t.Parallel()
 

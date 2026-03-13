@@ -96,9 +96,11 @@ func New(
 // fan-out and returns the cached results directly. On a cache miss, results
 // are saved after the fan-out completes.
 func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) ([]domain.QuoteResult, error) {
+	cacheKey := scopedKey(req)
+
 	// Cache lookup — only when a repository is wired in.
 	if o.repo != nil && req.RequestID != "" {
-		if cached, ok, err := o.repo.FindByRequestID(ctx, req.RequestID); err != nil {
+		if cached, ok, err := o.repo.FindByRequestID(ctx, cacheKey); err != nil {
 			o.log.Warn("cache lookup failed, proceeding with fan-out",
 				slog.String("request_id", req.RequestID),
 				slog.String("error", err.Error()),
@@ -118,7 +120,7 @@ func (o *Orchestrator) GetQuotes(ctx context.Context, req domain.QuoteRequest) (
 	// tied to the first caller's deadline — fanOut creates its own timeout
 	// from req.Timeout.
 	if req.RequestID != "" {
-		v, err, shared := o.sfGroup.Do(req.RequestID, func() (any, error) {
+		v, err, shared := o.sfGroup.Do(cacheKey, func() (any, error) {
 			return o.fanOut(context.WithoutCancel(ctx), req)
 		})
 		if shared {
@@ -247,7 +249,7 @@ func (o *Orchestrator) fanOut(ctx context.Context, req domain.QuoteRequest) ([]d
 	if o.repo != nil && req.RequestID != "" && len(collected) > 0 {
 		saveCtx, saveCancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer saveCancel()
-		if err := o.repo.Save(saveCtx, req.RequestID, collected); err != nil {
+		if err := o.repo.Save(saveCtx, scopedKey(req), collected); err != nil {
 			o.log.Warn("failed to save quotes to repository",
 				slog.String("request_id", req.RequestID),
 				slog.String("error", err.Error()),
@@ -370,6 +372,16 @@ func classifyError(err error) string {
 	default:
 		return "error"
 	}
+}
+
+// scopedKey returns a cache/singleflight key scoped to the authenticated client.
+// This prevents different API key holders from sharing or stealing cached results
+// by sending the same request_id.
+func scopedKey(req domain.QuoteRequest) string {
+	if req.ClientID == "" {
+		return req.RequestID
+	}
+	return req.ClientID + ":" + req.RequestID
 }
 
 // Compile-time assertion that Orchestrator satisfies ports.OrchestratorPort.

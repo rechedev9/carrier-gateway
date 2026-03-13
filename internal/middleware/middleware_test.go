@@ -182,11 +182,17 @@ func TestSecurityHeaders(t *testing.T) {
 
 	h.ServeHTTP(rec, req)
 
-	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
-		t.Errorf("X-Content-Type-Options = %q, want %q", got, "nosniff")
+	expected := map[string]string{
+		"X-Content-Type-Options":    "nosniff",
+		"Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+		"X-Frame-Options":           "DENY",
+		"Cache-Control":             "no-store",
+		"Content-Security-Policy":   "default-src 'none'",
 	}
-	if got := rec.Header().Get("Strict-Transport-Security"); got != "max-age=63072000; includeSubDomains" {
-		t.Errorf("Strict-Transport-Security = %q, want expected value", got)
+	for header, want := range expected {
+		if got := rec.Header().Get(header); got != want {
+			t.Errorf("%s = %q, want %q", header, got, want)
+		}
 	}
 }
 

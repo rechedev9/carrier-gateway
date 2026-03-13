@@ -29,6 +29,9 @@ type Money struct {
 type QuoteRequest struct {
 	// RequestID is a caller-supplied unique identifier for this quote request.
 	RequestID string
+	// ClientID identifies the authenticated client (set by auth middleware).
+	// Used to scope singleflight and cache keys so clients can't share/steal results.
+	ClientID string
 	// CoverageLines is the set of lines of business to price.
 	CoverageLines []CoverageLine
 	// Timeout is the maximum duration to wait for carrier responses.

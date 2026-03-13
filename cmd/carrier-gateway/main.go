@@ -346,14 +346,26 @@ func buildCarriers() []domain.Carrier {
 	}
 }
 
+// minAPIKeyLength rejects brute-forceable short keys at startup.
+const minAPIKeyLength = 32
+
 // parseAPIKeys splits a comma-separated string into non-empty keys.
+// It fatally exits if any key is shorter than minAPIKeyLength.
 func parseAPIKeys(raw string) []string {
 	var keys []string
 	for _, k := range strings.Split(raw, ",") {
 		k = strings.TrimSpace(k)
-		if k != "" {
-			keys = append(keys, k)
+		if k == "" {
+			continue
 		}
+		if len(k) < minAPIKeyLength {
+			slog.Error("API key too short — minimum 32 characters",
+				slog.Int("key_length", len(k)),
+				slog.Int("min_length", minAPIKeyLength),
+			)
+			os.Exit(1)
+		}
+		keys = append(keys, k)
 	}
 	return keys
 }
