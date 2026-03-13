@@ -104,6 +104,75 @@ func TestRequireAPIKey_ShortKey(t *testing.T) {
 	}
 }
 
+// --- Auth failure rate-limit tests ---
+
+func TestRequireAPIKey_RateLimitsFailures(t *testing.T) {
+	h := middleware.RequireAPIKey(echoHandler(), []string{"correct-key"}, nil, silentLog)
+
+	const burst = 10
+	for i := range burst {
+		req := httptest.NewRequest(http.MethodPost, "/quotes", nil)
+		req.Header.Set("Authorization", "Bearer wrong-key")
+		req.RemoteAddr = "10.0.0.1:12345"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d: got status %d, want 401", i+1, rec.Code)
+		}
+	}
+
+	// The (burst+1)th failure should be rate-limited.
+	req := httptest.NewRequest(http.MethodPost, "/quotes", nil)
+	req.Header.Set("Authorization", "Bearer wrong-key")
+	req.RemoteAddr = "10.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("got status %d, want 429", rec.Code)
+	}
+	if got := rec.Header().Get("Retry-After"); got != "60" {
+		t.Errorf("Retry-After = %q, want %q", got, "60")
+	}
+}
+
+func TestRequireAPIKey_RateLimitDoesNotAffectValidKeys(t *testing.T) {
+	h := middleware.RequireAPIKey(echoHandler(), []string{"correct-key"}, nil, silentLog)
+
+	// Exhaust the failure budget from this IP.
+	const burst = 10
+	for range burst {
+		req := httptest.NewRequest(http.MethodPost, "/quotes", nil)
+		req.Header.Set("Authorization", "Bearer wrong-key")
+		req.RemoteAddr = "10.0.0.2:12345"
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+	}
+
+	// Valid key from the same IP should still be blocked (IP is rate-limited).
+	req := httptest.NewRequest(http.MethodPost, "/quotes", nil)
+	req.Header.Set("Authorization", "Bearer correct-key")
+	req.RemoteAddr = "10.0.0.2:12345"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("got status %d, want 429 (IP exhausted budget)", rec.Code)
+	}
+
+	// A different IP with a valid key should pass.
+	req2 := httptest.NewRequest(http.MethodPost, "/quotes", nil)
+	req2.Header.Set("Authorization", "Bearer correct-key")
+	req2.RemoteAddr = "10.0.0.3:12345"
+	rec2 := httptest.NewRecorder()
+	h.ServeHTTP(rec2, req2)
+
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("got status %d, want 200 (clean IP with valid key)", rec2.Code)
+	}
+}
+
 // --- Security headers tests ---
 
 func TestSecurityHeaders(t *testing.T) {
